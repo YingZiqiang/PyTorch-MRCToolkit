@@ -21,7 +21,7 @@
 
 ## Performance
 
-### F1/EM score on SQuAD 1.0 dev set
+### F1/EM score on SQuAD 1.1 dev set
 
 ### F1/EM score on SQuAD 2.0 dev set
 
@@ -31,6 +31,6 @@
 For help or issues using this toolkit, please submit a GitHub issue or by email yingzq0116@163.com.
 
 ## Reference
-[sougou MRCToolkit](https://github.com/sogou/SMRCToolkit)
+[sogou MRCToolkit](https://github.com/sogou/SMRCToolkit)
 
 ## License
