@@ -16,9 +16,14 @@ class Vocabulary(object):
         self.special_tokens = special_tokens
         self.do_lowercase = do_lowercase
 
+        # Initial Tokens
+        self.pad_token = "<PAD>"
+        self.unk_token = "<UNK>"
+        self.initial_tokens = [self.pad_token, self.unk_token]
+
     def build_vocab(self, instances, min_word_count=-1, min_char_count=-1):
-        self.word_vocab = ["<PAD>"]
-        self.char_vocab = ["<PAD>"]
+        self.word_vocab = [token for token in self.initial_tokens]
+        self.char_vocab = [token for token in self.initial_tokens]
         # Padding word should be at index 0 by default
         # Convenient for upcoming padding operation
 
@@ -49,8 +54,8 @@ class Vocabulary(object):
         self._build_index_mapper()
 
     def set_vocab(self, word_vocab, char_vocab):
-        self.word_vocab = ["<PAD>"]
-        self.char_vocab = ["<PAD>"]
+        self.word_vocab = [token for token in self.initial_tokens]
+        self.char_vocab = [token for token in self.initial_tokens]
         if self.special_tokens is not None and isinstance(self.special_tokens, list):
             self.word_vocab.extend(self.special_tokens)
 
@@ -79,7 +84,7 @@ class Vocabulary(object):
         new_word_vocab = []
         special_tokens_set = set(self.special_tokens if self.special_tokens is not None else [])
         for word in self.word_vocab:
-            if word == "<PAD>" or word in embedding_dict or word in special_tokens_set:
+            if word in self.initial_tokens or word in special_tokens_set or word in embedding_dict:
                 new_word_vocab.append(word)
         self.word_vocab = new_word_vocab
         self._build_index_mapper()
@@ -88,30 +93,50 @@ class Vocabulary(object):
         embedding_size = embedding_dict[list(embedding_dict.keys())[0]].shape[0]
         embedding_list = []
         for word in self.word_vocab:
-            if word == "<PAD>":
+            if word == self.pad_token:
                 embedding_list.append(np.zeros([1, embedding_size], dtype=np.float))
-            elif word in special_tokens_set:
+            elif word == self.unk_token or word in special_tokens_set:
                 embedding_list.append(np.random.uniform(-init_scale, init_scale, [1, embedding_size]))
             else:
                 embedding_list.append(np.reshape(embedding_dict[word], [1, embedding_size]))
 
         # To be consistent with the behavior of tf.contrib.lookup.index_table_from_tensor,
         # <UNK> token is appended at last
-        embedding_list.append(np.random.uniform(-init_scale, init_scale, [1, embedding_size]))
+        # embedding_list.append(np.random.uniform(-init_scale, init_scale, [1, embedding_size]))
 
         return np.concatenate(embedding_list, axis=0)
 
     def get_word_pad_idx(self):
-        return self.word2idx['<PAD>']
+        return self.word2idx[self.pad_token]
 
     def get_char_pad_idx(self):
-        return self.char2idx['<PAD>']
+        return self.char2idx[self.pad_token]
 
-    def get_word_vocab(self):
-        return self.word_vocab
+    def get_word_unk_idx(self):
+        return self.word2idx[self.unk_token]
 
-    def get_char_vocab(self):
-        return self.char_vocab
+    def get_char_unk_idx(self):
+        return self.char2idx[self.unk_token]
+
+    # def get_word_vocab(self):
+    #     return self.word_vocab
+    #
+    # def get_char_vocab(self):
+    #     return self.char_vocab
+
+    def get_word_idx(self, token):
+        token = token.lower() if self.do_lowercase else token
+        if token in self.word_vocab:
+            return self.word2idx[token]
+        else:
+            return self.get_word_unk_idx()
+
+    def get_char_idx(self, token):
+        token = token.lower() if self.do_lowercase else token
+        if token in self.char_vocab:
+            return self.char2idx[token]
+        else:
+            return self.get_char_unk_idx()
 
     def save(self, file_path):
         logging.info("Saving vocabulary at {}".format(file_path))
