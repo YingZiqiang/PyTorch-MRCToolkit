@@ -7,7 +7,7 @@ from pytorch_mrc.dataset.squad import SquadReader, SquadEvaluator
 # from pytorch_mrc.model.bidaf import BiDAF
 # import tensorflow as tf
 import logging
-# from pytorch_mrc.data.batch_generator import BatchGenerator
+from pytorch_mrc.data.batch_generator import BatchGenerator
 
 # tf.logging.set_verbosity(tf.logging.ERROR)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -26,9 +26,11 @@ vocab = Vocabulary()
 vocab.build_vocab(eval_data, min_word_count=3, min_char_count=10)
 word_embedding = vocab.make_word_embedding(embedding_folder + embedding_file)
 print(word_embedding.shape)
+print(vocab.get_word_idx('tfdfsdfsfhe'))
 print('successful!')
 
-# train_batch_generator = BatchGenerator(vocab, train_data, batch_size=60, training=True)
+train_batch_generator = BatchGenerator(vocab, eval_data, batch_size=1, training=True)
+print(train_batch_generator.get_dataloader())
 #
 # eval_batch_generator = BatchGenerator(vocab, eval_data, batch_size=60)
 #

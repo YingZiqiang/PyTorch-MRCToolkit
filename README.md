@@ -30,7 +30,9 @@
 ## Contact information
 For help or issues using this toolkit, please submit a GitHub issue or by email yingzq0116@163.com.
 
-## Reference
-[sogou MRCToolkit](https://github.com/sogou/SMRCToolkit)
+## Reference(code and paper)
+- [sogou MRCToolkit Code](https://github.com/sogou/SMRCToolkit)
+- [Highway Networks Paper](https://arxiv.org/pdf/1505.00387.pdf)
+- [BIDAF Paper](https://arxiv.org/pdf/1611.01603.pdf)
 
 ## License

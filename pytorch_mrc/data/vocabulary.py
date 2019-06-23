@@ -118,11 +118,11 @@ class Vocabulary(object):
     def get_char_unk_idx(self):
         return self.char2idx[self.unk_token]
 
-    # def get_word_vocab(self):
-    #     return self.word_vocab
-    #
-    # def get_char_vocab(self):
-    #     return self.char_vocab
+    def get_word_vocab(self):
+        return self.word_vocab
+
+    def get_char_vocab(self):
+        return self.char_vocab
 
     def get_word_idx(self, token):
         token = token.lower() if self.do_lowercase else token
