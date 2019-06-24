@@ -10,11 +10,9 @@ from pytorch_mrc.train.trainer import Trainer
 
 class BaseModel(nn.Module):
     def __init__(self, vocab=None):
-        self.vocab = vocab
+        super(BaseModel, self).__init__()
 
-        # sess_conf = tf.ConfigProto()
-        # sess_conf.gpu_options.allow_growth = True
-        # self.session = tf.Session(config=sess_conf)
+        self.vocab = vocab
         self.initialized = False
         self.ema_decay = 0
 
@@ -38,27 +36,31 @@ class BaseModel(nn.Module):
     def compile(self, *input):
         raise NotImplementedError
 
-    def update(self, *input):
+    def update(self):
+        # TODO There are still some problems with logic.
+        if not self.training:
+            raise Exception("Only in the train mode, you can update the weights")
+
         if self.optimizer is not None:
             self.optimizer.step()
-            self.optimizer.zero_grad()
+            # self.optimizer.zero_grad()
         else:
             raise Exception("The model need to compile!")
 
     def get_best_answer(self, *input):
         raise NotImplementedError
 
-    def train_and_evaluate(self, train_generator, eval_generator, evaluator, epochs=1, eposides=1,
+    def train_and_evaluate(self, train_generator, eval_generator, evaluator, epochs=1, episodes=1,
                            save_dir=None, summary_dir=None, save_summary_steps=10):
         if not self.initialized:
-            self.session.run(tf.global_variables_initializer())
+            pass
 
-        Trainer._train_and_evaluate(self, train_generator, eval_generator, evaluator, epochs=epochs,
-                                    eposides=eposides,
+        Trainer.train_and_evaluate(self, train_generator, eval_generator, evaluator, epochs=epochs,
+                                    episodes=episodes,
                                     save_dir=save_dir, summary_dir=summary_dir, save_summary_steps=save_summary_steps)
 
     def evaluate(self, batch_generator, evaluator):
-        Trainer._evaluate(self, batch_generator, evaluator)
+        Trainer.evaluate(self, batch_generator, evaluator)
 
     def inference(self, batch_generator):
-        Trainer._inference(self, batch_generator)
+        Trainer.inference(self, batch_generator)

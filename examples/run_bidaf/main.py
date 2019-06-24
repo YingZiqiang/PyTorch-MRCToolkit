@@ -4,7 +4,7 @@ import sys
 sys.path.append('../..')
 from pytorch_mrc.data.vocabulary import Vocabulary
 from pytorch_mrc.dataset.squad import SquadReader, SquadEvaluator
-# from pytorch_mrc.model.bidaf import BiDAF
+from pytorch_mrc.model.bidaf import BiDAF
 # import tensorflow as tf
 import logging
 from pytorch_mrc.data.batch_generator import BatchGenerator
@@ -29,11 +29,11 @@ print(word_embedding.shape)
 print(vocab.get_word_idx('tfdfsdfsfhe'))
 print('successful!')
 
-train_batch_generator = BatchGenerator(vocab, eval_data, batch_size=1, training=True)
-print(train_batch_generator.get_dataloader())
+train_batch_generator = BatchGenerator(vocab, eval_data, batch_size=60, training=True)
+# print(train_batch_generator.get_dataloader())
 #
-# eval_batch_generator = BatchGenerator(vocab, eval_data, batch_size=60)
-#
-# model = BiDAF(vocab, pretrained_word_embedding=word_embedding)
-# model.compile(tf.train.AdamOptimizer, 0.001)
-# model.train_and_evaluate(train_batch_generator, eval_batch_generator, evaluator, epochs=15, eposides=2)
+eval_batch_generator = BatchGenerator(vocab, eval_data, batch_size=60)
+
+model = BiDAF(vocab, pretrained_word_embedding=word_embedding)
+model.compile()
+model.train_and_evaluate(train_batch_generator, eval_batch_generator, evaluator, epochs=15, episodes=2)

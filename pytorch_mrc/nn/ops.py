@@ -24,23 +24,20 @@ def weighted_sum(seq, prob):
     return (seq * prob.unsqueeze(2)).sum(1)
 
 
-def masked_softmax(logits, mask):
+def mask_logits(logits, mask):
     if len(logits.size()) != len(mask.size()):
         mask = sequence_mask(mask, maxlen=logits.size(1), dtype=torch.float32)
+    return logits + (1.0 - mask) * VERY_NEGATIVE_NUMBER
 
-    return F.softmax(logits + (1.0 - mask) * VERY_NEGATIVE_NUMBER, dim=-1)
+
+def masked_softmax(logits, mask):
+    return F.softmax(mask_logits(logits, mask), dim=-1)
 
 
-# def mask_logits(logits, mask):
-#     if len(logits.shape.as_list()) != len(mask.shape.as_list()):
-#         mask = tf.sequence_mask(mask, tf.shape(logits)[1], dtype=tf.float32)
-#
-#     return logits + (1.0 - mask) * tf.float32.min
-
-# def add_seq_mask(inputs, seq_len, mode='mul', max_len=None):
-#     mask = tf.expand_dims(tf.cast(tf.sequence_mask(seq_len, maxlen=max_len), tf.float32), 2)
-#     if mode == 'mul':
-#         return inputs * mask
-#     if mode == 'add':
-#         mask = (1 - mask) * tf.float32.min
-#         return inputs + mask
+def add_seq_mask(inputs, seq_len, mode='mul', max_len=None):
+    mask = sequence_mask(seq_len, maxlen=max_len, dtype=torch.float32).unsqueeze(2)
+    if mode == 'mul':
+        return inputs * mask
+    if mode == 'add':
+        mask = (1 - mask) * VERY_NEGATIVE_NUMBER
+        return inputs + mask

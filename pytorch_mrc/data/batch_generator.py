@@ -1,5 +1,5 @@
 import torch
-from torch.utils.data import Dataset, TensorDataset, DataLoader, RandomSampler, SequentialSampler
+from torch.utils.data import Dataset, DataLoader
 from collections import OrderedDict
 import numpy as np
 import collections
@@ -17,14 +17,6 @@ class BatchGenerator(object):
         self.training = training
         self.shuffle_ratio = shuffle_ratio
         self.num_parallel_calls = num_parallel_calls if num_parallel_calls>0 else multiprocessing.cpu_count()//2
-
-        if self.instances is None or len(self.instances) == 0:
-            raise ValueError('empty instances!!')
-
-        self.additional_fields = additional_fields if additional_fields is not None else list()
-        self.feature_vocab = feature_vocab if feature_vocab is not None else dict()
-
-        self.dataset = self.build_input_pipeline()
 
         def mrc_collate(batch, word_pad_idx=self.vocab.get_word_pad_idx()):
             result = {}
@@ -44,22 +36,38 @@ class BatchGenerator(object):
                     result[key].append(value)
             return result
 
-        self.data_loader = DataLoader(dataset=self.dataset,shuffle=training,
+        def generator(dataloader):
+            for batch_data in dataloader:
+                yield batch_data
+
+        if self.instances is None or len(self.instances) == 0:
+            raise ValueError('empty instances!!')
+
+        self.additional_fields = additional_fields if additional_fields is not None else list()
+        self.feature_vocab = feature_vocab if feature_vocab is not None else dict()
+
+        self.dataset = self.build_input_pipeline()
+
+        self.dataloader = DataLoader(dataset=self.dataset,shuffle=training,
                                       batch_size=self.batch_size,
                                       collate_fn=mrc_collate,
                                       num_workers=self.num_parallel_calls)
+        self.generator = generator(self.dataloader)
 
-    # def get_instance_size(self):
-    #     return len(self.instances)
+    def get_dataset_size(self):
+        return len(self.dataset)
 
     def get_batch_size(self):
         return self.batch_size
 
-    # def get_instances(self):
-    #     return self.instances
+    def get_dataset(self):
+        return self.dataset
 
     def get_dataloader(self):
-        return self.data_loader
+        return self.dataloader
+
+    def next(self):
+        return next(self.generator)
 
     @staticmethod
     def detect_input_type_shape(instance, additional_fields=None):

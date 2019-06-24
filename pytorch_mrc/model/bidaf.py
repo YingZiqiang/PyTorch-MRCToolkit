@@ -6,11 +6,10 @@ from collections import OrderedDict, defaultdict
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.optim import Adam
 from torch.nn import CrossEntropyLoss
 
 from pytorch_mrc.model.base_model import BaseModel
-from pytorch_mrc.nn.layers import Conv1DAndMaxPooling, Dropout, Highway, Embedding, ElmoEmbedding
+from pytorch_mrc.nn.layers import Embedding
 from pytorch_mrc.nn.recurrent import BiLSTM
 from pytorch_mrc.nn.attention import BiAttention
 from pytorch_mrc.nn.similarity_function import TriLinear
@@ -39,9 +38,9 @@ class BiDAF(BaseModel):
 
         # Embedding
         # TODO UNK token need to handle and char embed need to do
-        word_embedding = Embedding(pretrained_embedding=pretrained_word_embedding,
-                                   embedding_shape=(len(vocab.get_word_vocab()), word_embedding_size),
-                                   trainable=word_embedding_trainable)
+        self.word_embedding = Embedding(pretrained_embedding=pretrained_word_embedding,
+                                        embedding_shape=(len(vocab.get_word_vocab()), word_embedding_size),
+                                        trainable=word_embedding_trainable)
         # char_embedding = Embedding(embedding_shape=(len(self.vocab.get_char_vocab()), self.char_embedding_size),
         #                            trainable=True, init_scale=0.2)
 
@@ -67,7 +66,7 @@ class BiDAF(BaseModel):
         # Parsing data
         context_ids, context_len = torch.tensor(data['context_ids']), torch.tensor(data['context_len'])
         question_ids, question_len = torch.tensor(data['question_ids']), torch.tensor(data['question_len'])
-        start_positions, end_positions = torch.tensor(data['answer_start']), torch.tensor(data['answer_end'])
+        answer_start, answer_end = torch.tensor(data['answer_start']), torch.tensor(data['answer_end'])
 
         # 1.1 Embedding
         context_word_repr = self.word_embedding(context_ids)
@@ -99,7 +98,7 @@ class BiDAF(BaseModel):
 
         # 4. Modeling layer
         final_merged_context = torch.cat([context_repr, c2q, context_repr*c2q, context_repr*q2c], dim=-1)
-        modeled_context = self.modeling_lstm(final_merged_context, context_len)
+        modeled_context, _ = self.modeling_lstm(final_merged_context, context_len)
 
         # 5. Start prediction
         start_logits = self.start_pred_layer(torch.cat([final_merged_context, modeled_context], dim=-1))
@@ -110,35 +109,42 @@ class BiDAF(BaseModel):
         # TODO I just follow the BiDAF paper, maybe it can do better
         # start_repr = weighted_sum(modeled_context, self.start_prob)
         # tiled_start_repr = start_repr.unsqueeze(1).repeat(1, modeled_context.size(1), 1)
-        encoded_end_repr = self.end_lstm(modeled_context, context_len)
+        encoded_end_repr, _ = self.end_lstm(modeled_context, context_len)
         end_logits = self.end_pred_layer(torch.cat([final_merged_context, encoded_end_repr], dim=-1))
         end_logits = end_logits.squeeze(-1)
         self.end_prob = masked_softmax(end_logits, context_len)
 
-        # 7. If train return loss, if eval return start_logits and end_logits
-        # TODO for squad2.0
-        if start_positions is not None and end_positions is not None:
-            # If we are on multi-GPU, split add a dimension
-            if len(start_positions.size()) > 1:
-                start_positions = start_positions.squeeze(-1)
-            if len(end_positions.size()) > 1:
-                end_positions = end_positions.squeeze(-1)
+        # 7. If train return loss, if eval return a dict
+        # TODO for squad2.0 and for multi GPUs
+        if answer_start is not None and answer_end is not None:
             # sometimes the start/end positions are outside our model inputs, we ignore these terms
             ignored_index = start_logits.size(1)
-            start_positions.clamp_(0, ignored_index)
-            end_positions.clamp_(0, ignored_index)
+            answer_start.clamp_(0, ignored_index)
+            answer_end.clamp_(0, ignored_index)
 
             loss_fct = CrossEntropyLoss(ignore_index=ignored_index)
-            start_loss = loss_fct(start_logits, start_positions)
-            end_loss = loss_fct(end_logits, end_positions)
+            start_loss = loss_fct(mask_logits(start_logits, context_len), answer_start)
+            end_loss = loss_fct(mask_logits(end_logits, context_len), answer_end)
             total_loss = (start_loss + end_loss) / 2
-            return total_loss
+
+            if self.training:
+                return total_loss
+            else:
+                output_dict = {
+                "start_prob": self.start_prob.numpy(),
+                "end_prob": self.end_prob.numpy()
+                }
+                return total_loss, output_dict
         else:
-            return start_logits, end_logits
+            output_dict = {
+            "start_prob": self.start_prob.numpy(),
+            "end_prob": self.end_prob.numpy()
+            }
+            return output_dict
 
 
-    def compile(self, initial_lr):
-        self.optimizer = Adam(self.parameters(), lr=initial_lr)
+    def compile(self, optimizer=torch.optim.Adam, initial_lr=0.001):
+        self.optimizer = optimizer(self.parameters(), lr=initial_lr)
 
     def get_best_answer(self, output, instances):
         na_prob = {}

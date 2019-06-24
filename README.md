@@ -10,7 +10,7 @@
 
 ## Modules
 1. `data`
-2. `dataset_reader`
+2. `dataset`
 3. `examples`
 4. `model`
 5. `nn`

@@ -1,10 +1,11 @@
 # coding: utf-8
+# from pytorch_mrc.nn.ops import dropout, add_seq_mask
+import os
+from collections import defaultdict
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-# from pytorch_mrc.nn.ops import dropout, add_seq_mask
-from collections import defaultdict
-import os
+import numpy as np
 
 VERY_NEGATIVE_NUMBER = -1e29
 
@@ -83,10 +84,14 @@ class Embedding(nn.Module):
             raise ValueError("At least one of pretrained_embedding and embedding_shape must be specified!")
 
         if pretrained_embedding is not None:
+            if isinstance(pretrained_embedding, np.ndarray):
+                pretrained_embedding = torch.from_numpy(pretrained_embedding)
             self.embedding = nn.Embedding.from_pretrained(pretrained_embedding)
         else:
             self.embedding = nn.Embedding(embedding_shape[0], embedding_shape[1])
             nn.init.uniform_(self.embedding.weight, -init_scale, init_scale)
+
+        self.embedding = self.embedding.float()
 
         if not trainable:
             # do not update the weight
