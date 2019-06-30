@@ -91,6 +91,7 @@ class Embedding(nn.Module):
             self.embedding = nn.Embedding(embedding_shape[0], embedding_shape[1])
             nn.init.uniform_(self.embedding.weight, -init_scale, init_scale)
 
+        # TODO need to float32?
         self.embedding = self.embedding.float()
 
         if not trainable:

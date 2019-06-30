@@ -36,4 +36,4 @@ eval_batch_generator = BatchGenerator(vocab, eval_data, batch_size=60)
 
 model = BiDAF(vocab, pretrained_word_embedding=word_embedding)
 model.compile()
-model.train_and_evaluate(train_batch_generator, eval_batch_generator, evaluator, epochs=15, episodes=2)
+model.train_and_evaluate(train_batch_generator, eval_batch_generator, evaluator, epochs=15, episodes=10)

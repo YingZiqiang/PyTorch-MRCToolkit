@@ -1,6 +1,8 @@
 import os
 import logging
 from collections import defaultdict
+
+import torch
 import numpy as np
 
 
@@ -10,9 +12,9 @@ class Trainer(object):
 
     @staticmethod
     def _train(model, batch_generator, steps, summary_writer, save_summary_steps, log_every_n_batch=10):
+        model.train()
         # TODO handle the summary_writer and save_summary_steps
         total_loss, n_batch_loss = 0.0, 0.0
-        model.train()
         for i in range(steps):
             train_batch = batch_generator.next()
 
@@ -36,15 +38,19 @@ class Trainer(object):
     @staticmethod
     def _eval(model, batch_generator, steps, summary_writer=None):
         model.eval()
+        total_loss = 0.0
         final_output = defaultdict(list)
-        for _ in range(steps):
-            eval_batch = batch_generator.next()
-            loss, output = model(eval_batch)
-            for key in output.keys():
-                final_output[key] += [v for v in output[key]]
+
+        with torch.no_grad():
+            for _ in range(steps):
+                eval_batch = batch_generator.next()
+                loss, output = model(eval_batch)
+                total_loss += loss.item()
+                for key in output.keys():
+                    final_output[key] += [v for v in output[key]]
 
         # Get Eval Mean Loss
-        logging.info("- Eval mean loss: " + loss.item())
+        logging.info("- Eval mean loss: {:05.3f}".format(total_loss / steps))
 
         # Add summaries manually to writer at global_step_val
         if summary_writer is not None:
@@ -61,11 +67,14 @@ class Trainer(object):
     def _inference(model, batch_generator, steps):
         model.eval()
         final_output = defaultdict(list)
-        for _ in range(steps):
-            eval_batch = batch_generator.next()
-            output = model(batch_generator)
-            for key in output.keys():
-                final_output[key] += [v for v in output[key]]
+
+        with torch.no_grad():
+            for _ in range(steps):
+                eval_batch = batch_generator.next()
+                output = model(batch_generator)
+                for key in output.keys():
+                    final_output[key] += [v for v in output[key]]
+
         return final_output
 
     @staticmethod
@@ -80,6 +89,7 @@ class Trainer(object):
         best_eval_score = 0.0
         for epoch in range(epochs):
             logging.info("Epoch {}/{}".format(epoch + 1, epochs))
+            train_batch_generator.init()
             train_num_steps = (train_batch_generator.get_dataset_size() +
                                train_batch_generator.get_batch_size() - 1) // train_batch_generator.get_batch_size()
 
@@ -101,14 +111,13 @@ class Trainer(object):
                     last_save_path = os.path.join(save_dir, 'last_weights', 'after-episode')
                     model.save(last_save_path, global_step=episode_id)
 
-                # Evaluate for one episode on dev set
-                eval_dataset = eval_batch_generator.get_dataset()
-
+                # Evaluate for one episode on dev set, TODO
+                eval_batch_generator.init()
+                eval_raw_dataset = eval_batch_generator.get_raw_dataset()
                 eval_num_steps = (eval_batch_generator.get_dataset_size() +
                                   eval_batch_generator.get_batch_size() - 1) // eval_batch_generator.get_batch_size()
                 output = Trainer._eval(model, eval_batch_generator, eval_num_steps, eval_summary)
-                score = evaluator.get_score(model.get_best_answer(output, eval_dataset))
-
+                score = evaluator.get_score(model.get_best_answer(output, eval_raw_dataset))
                 metrics_string = " ; ".join("{}: {:05.3f}".format(k, v) for k, v in score.items())
                 logging.info("- Eval metrics: " + metrics_string)
 
@@ -132,20 +141,22 @@ class Trainer(object):
 
     @staticmethod
     def evaluate(model, batch_generator, evaluator):
-        eval_dataset = batch_generator.get_dataset()
+        batch_generator.init()
+        eval_raw_dataset = batch_generator.get_raw_dataset()
 
-        eval_num_steps = (eval_dataset.get_dataset_size() +
+        eval_num_steps = (batch_generator.get_dataset_size() +
                           batch_generator.get_batch_size() - 1) // batch_generator.get_batch_size()
         output = Trainer._eval(model, batch_generator, eval_num_steps, None)
-        pred_answer = model.get_best_answer(output, eval_dataset)
-        score = evaluator.get_score(pred_answer)
+        score = evaluator.get_score(model.get_best_answer(output, eval_raw_dataset))
         metrics_string = " ; ".join("{}: {:05.3f}".format(k, v) for k, v in score.items())
         logging.info("- Eval metrics: " + metrics_string)
 
     @staticmethod
     def inference(model, batch_generator):
-        instances = batch_generator.get_dataset()
-        eval_num_steps = (len(instances) + batch_generator.get_batch_size() - 1) // batch_generator.get_batch_size()
+        batch_generator.init()
+        test_raw_dataset = batch_generator.get_raw_dataset()
+        eval_num_steps = (batch_generator.get_dataset_size() +
+                          batch_generator.get_batch_size() - 1) // batch_generator.get_batch_size()
         output = Trainer._inference(model, batch_generator, eval_num_steps)
-        pred_answers = model.get_best_answer(output, instances)
+        pred_answers = model.get_best_answer(output, test_raw_dataset)
         return pred_answers

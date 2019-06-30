@@ -36,10 +36,6 @@ class BatchGenerator(object):
                     result[key].append(value)
             return result
 
-        def generator(dataloader):
-            for batch_data in dataloader:
-                yield batch_data
-
         if self.instances is None or len(self.instances) == 0:
             raise ValueError('empty instances!!')
 
@@ -52,7 +48,18 @@ class BatchGenerator(object):
                                       batch_size=self.batch_size,
                                       collate_fn=mrc_collate,
                                       num_workers=self.num_parallel_calls)
-        self.generator = generator(self.dataloader)
+
+    def _generator(self, dataloader):
+        for batch_data in dataloader:
+            yield batch_data
+
+    def init(self):
+        self.generator = self._generator(self.dataloader)
+
+    def next(self):
+        if self.generator is None:
+            raise Exception('you must do init before do next.')
+        return next(self.generator)
 
     def get_dataset_size(self):
         return len(self.dataset)
@@ -60,14 +67,14 @@ class BatchGenerator(object):
     def get_batch_size(self):
         return self.batch_size
 
-    def get_dataset(self):
-        return self.dataset
+    def get_raw_dataset(self):
+        return self.instances
 
-    def get_dataloader(self):
-        return self.dataloader
-
-    def next(self):
-        return next(self.generator)
+    # def get_dataset(self):
+    #     return self.dataset
+    #
+    # def get_dataloader(self):
+    #     return self.dataloader
 
     @staticmethod
     def detect_input_type_shape(instance, additional_fields=None):
