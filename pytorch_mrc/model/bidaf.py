@@ -12,17 +12,17 @@ from pytorch_mrc.model.base_model import BaseModel
 from pytorch_mrc.nn.layers import Embedding
 from pytorch_mrc.nn.recurrent import BiLSTM
 from pytorch_mrc.nn.attention import BiAttention
-from pytorch_mrc.nn.similarity_function import TriLinear
+from pytorch_mrc.nn.similarity_function import TriLinear, BiLinear
 from pytorch_mrc.nn.ops import masked_softmax, weighted_sum, mask_logits
 
 
 class BiDAF(BaseModel):
-    def __init__(self, vocab, pretrained_word_embedding=None, word_embedding_size=100, char_embedding_size=8,
+    def __init__(self, vocab, device, pretrained_word_embedding=None, word_embedding_size=100, char_embedding_size=8,
                  char_conv_filters=100,
                  char_conv_kernel_size=5, rnn_hidden_size=100,
                  dropout_prob=0.2, max_answer_len=17, word_embedding_trainable=False,use_elmo=False,elmo_local_path=None,
                  enable_na_answer=False):
-        super(BiDAF, self).__init__(vocab)
+        super(BiDAF, self).__init__(vocab, device)
         self.rnn_hidden_size = rnn_hidden_size
         self.drop_prob = dropout_prob
         self.word_embedding_size = word_embedding_size
@@ -64,9 +64,9 @@ class BiDAF(BaseModel):
 
     def forward(self, data):
         # Parsing data
-        context_ids, context_len = torch.tensor(data['context_ids']), torch.tensor(data['context_len'])
-        question_ids, question_len = torch.tensor(data['question_ids']), torch.tensor(data['question_len'])
-        answer_start, answer_end = torch.tensor(data['answer_start']), torch.tensor(data['answer_end'])
+        context_ids, context_len = data['context_ids'], data['context_len']
+        question_ids, question_len = data['question_ids'], data['question_len']
+        answer_start, answer_end = data['answer_start'], data['answer_end']
 
         # 1.1 Embedding
         context_word_repr = self.word_embedding(context_ids)
@@ -131,14 +131,14 @@ class BiDAF(BaseModel):
                 return total_loss
             else:
                 output_dict = {
-                "start_prob": self.start_prob.numpy(),
-                "end_prob": self.end_prob.numpy()
+                "start_prob": self.start_prob.cpu().numpy(),
+                "end_prob": self.end_prob.cpu().numpy()
                 }
                 return total_loss, output_dict
         else:
             output_dict = {
-            "start_prob": self.start_prob.numpy(),
-            "end_prob": self.end_prob.numpy()
+            "start_prob": self.start_prob.cpu().numpy(),
+            "end_prob": self.end_prob.cpu().numpy()
             }
             return output_dict
 

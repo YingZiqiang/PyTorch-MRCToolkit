@@ -8,7 +8,7 @@ def sequence_mask(lengths, maxlen=None, dtype=torch.float32):
     # TODO come from tf.sequence_mask. There should be better implementation
     if maxlen is None:
         maxlen = lengths.max().item()
-    mask = torch.zeros(len(lengths), maxlen, dtype=dtype)
+    mask = torch.zeros(len(lengths), maxlen, device=lengths.device, dtype=dtype)
     for idx, real_len in enumerate(lengths):
         mask[idx, :real_len] = 1
     return mask

@@ -11,12 +11,14 @@ class Trainer(object):
         pass
 
     @staticmethod
-    def _train(model, batch_generator, steps, summary_writer, save_summary_steps, log_every_n_batch=10):
+    def _train(model, device, batch_generator, steps, summary_writer, save_summary_steps, log_every_n_batch=100):
         model.train()
         # TODO handle the summary_writer and save_summary_steps
         total_loss, n_batch_loss = 0.0, 0.0
         for i in range(steps):
             train_batch = batch_generator.next()
+            for key, value in train_batch.items():
+                train_batch[key] = value.to(device)
 
             # forward + backward + optimize
             model.zero_grad()
@@ -36,7 +38,7 @@ class Trainer(object):
         logging.info("- Train mean loss: {:05.3f}".format(total_loss / steps))
 
     @staticmethod
-    def _eval(model, batch_generator, steps, summary_writer=None):
+    def _eval(model, device, batch_generator, steps, summary_writer=None):
         model.eval()
         total_loss = 0.0
         final_output = defaultdict(list)
@@ -44,6 +46,9 @@ class Trainer(object):
         with torch.no_grad():
             for _ in range(steps):
                 eval_batch = batch_generator.next()
+                for key, value in eval_batch.items():
+                    eval_batch[key] = value.to(device)
+
                 loss, output = model(eval_batch)
                 total_loss += loss.item()
                 for key in output.keys():
@@ -78,8 +83,10 @@ class Trainer(object):
         return final_output
 
     @staticmethod
-    def train_and_evaluate(model, train_batch_generator, eval_batch_generator, evaluator, epochs=1, episodes=1,
+    def train_and_evaluate(model, device, train_batch_generator, eval_batch_generator, evaluator, epochs=1, episodes=1,
                             save_dir=None, summary_dir=None, save_summary_steps=10):
+        model.to(device)
+
         # TODO use tensorboardX
         train_summary = None
         eval_summary = None
@@ -100,7 +107,7 @@ class Trainer(object):
                 logging.info("episode {}/{}".format(episode + 1, episodes))
                 current_step_num = min(num_steps_per_episode, train_num_steps - episode * num_steps_per_episode)
                 episode_id = epoch * episodes + episode + 1
-                Trainer._train(model, train_batch_generator, current_step_num, train_summary, save_summary_steps)
+                Trainer._train(model, device, train_batch_generator, current_step_num, train_summary, save_summary_steps)
 
                 if model.ema_decay>0:
                     # TODO how to do it
@@ -116,7 +123,7 @@ class Trainer(object):
                 eval_raw_dataset = eval_batch_generator.get_raw_dataset()
                 eval_num_steps = (eval_batch_generator.get_dataset_size() +
                                   eval_batch_generator.get_batch_size() - 1) // eval_batch_generator.get_batch_size()
-                output = Trainer._eval(model, eval_batch_generator, eval_num_steps, eval_summary)
+                output = Trainer._eval(model, device, eval_batch_generator, eval_num_steps, eval_summary)
                 score = evaluator.get_score(model.get_best_answer(output, eval_raw_dataset))
                 metrics_string = " ; ".join("{}: {:05.3f}".format(k, v) for k, v in score.items())
                 logging.info("- Eval metrics: " + metrics_string)
@@ -141,6 +148,7 @@ class Trainer(object):
 
     @staticmethod
     def evaluate(model, batch_generator, evaluator):
+        model.to(self.device)
         batch_generator.init()
         eval_raw_dataset = batch_generator.get_raw_dataset()
 
@@ -153,6 +161,7 @@ class Trainer(object):
 
     @staticmethod
     def inference(model, batch_generator):
+        model.to(self.device)
         batch_generator.init()
         test_raw_dataset = batch_generator.get_raw_dataset()
         eval_num_steps = (batch_generator.get_dataset_size() +

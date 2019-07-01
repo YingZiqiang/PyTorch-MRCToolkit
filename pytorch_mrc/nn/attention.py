@@ -8,6 +8,7 @@ from pytorch_mrc.nn.ops import sequence_mask
 
 VERY_NEGATIVE_NUMBER = -1e29
 
+
 class BiAttention(nn.Module):
     """ Bi-Directonal Attention from https://arxiv.org/abs/1611.01603 """
 

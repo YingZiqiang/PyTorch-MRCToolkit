@@ -3,7 +3,6 @@ from torch.utils.data import Dataset, DataLoader
 from collections import OrderedDict
 import numpy as np
 import collections
-import six
 import logging
 
 import multiprocessing
@@ -17,6 +16,15 @@ class BatchGenerator(object):
         self.training = training
         self.shuffle_ratio = shuffle_ratio
         self.num_parallel_calls = num_parallel_calls if num_parallel_calls>0 else multiprocessing.cpu_count()//2
+        self.additional_fields = additional_fields if additional_fields is not None else list()
+        self.feature_vocab = feature_vocab if feature_vocab is not None else dict()
+
+        if self.instances is None or len(self.instances) == 0:
+            raise ValueError('empty instances!!')
+
+        self.dataset = self.build_input_pipeline()
+        print(self.dataset[0].keys())
+        print(self.dataset[0])
 
         def mrc_collate(batch, word_pad_idx=self.vocab.get_word_pad_idx()):
             result = {}
@@ -34,15 +42,9 @@ class BatchGenerator(object):
             for sample in batch:
                 for key, value in sample.items():
                     result[key].append(value)
+            for key, value in result.items():
+                result[key] = torch.tensor(value)
             return result
-
-        if self.instances is None or len(self.instances) == 0:
-            raise ValueError('empty instances!!')
-
-        self.additional_fields = additional_fields if additional_fields is not None else list()
-        self.feature_vocab = feature_vocab if feature_vocab is not None else dict()
-
-        self.dataset = self.build_input_pipeline()
 
         self.dataloader = DataLoader(dataset=self.dataset,shuffle=training,
                                       batch_size=self.batch_size,
@@ -77,7 +79,7 @@ class BatchGenerator(object):
     #     return self.dataloader
 
     @staticmethod
-    def detect_input_type_shape(instance, additional_fields=None):
+    def detect_input_type(instance, additional_fields=None):
         instance_keys = instance.keys()
         fields = ['context_tokens', 'question_tokens', 'answer_start', 'answer_end']
         try:
@@ -91,19 +93,18 @@ class BatchGenerator(object):
             fields.extend(additional_fields)
 
         def get_type(value):
-            if isinstance(value, six.string_types):
-                return six.string_types
-            elif isinstance(value, bool):
-                return bool
+            if isinstance(value, float):
+                return torch.float32
             elif isinstance(value, int):
                 return torch.int32
-            elif isinstance(value, float):
-                return torch.float32
+            elif isinstance(value, str):
+                return str
+            elif isinstance(value, bool):
+                return bool
             else:
                 return None
 
         input_type = {}
-        input_shape = {}
 
         for field in fields:
             if instance[field] is None:
@@ -118,22 +119,19 @@ class BatchGenerator(object):
                 field_type = get_type(instance[field][0])
                 if field_type is not None:
                     input_type[field] = field_type
-                    input_shape[field] = [None]
                 else:
                     logging.warning('Data type of field "%s" not detected! Skip this field.', field)
             else:
                 field_type = get_type(instance[field])
                 if field_type is not None:
                     input_type[field] = field_type
-                    input_shape[field] = []
                 else:
                     logging.warning('Data type of field "%s" not detected! Skip this field.', field)
 
-        return fields, input_type, input_shape
+        return fields, input_type
 
     def build_input_pipeline(self):
-        input_fields, input_type_dict, input_shape_dict = \
-            BatchGenerator.detect_input_type_shape(self.instances[0], self.additional_fields)
+        input_fields, input_type_dict = BatchGenerator.detect_input_type(self.instances[0], self.additional_fields)
 
         # 1. Get data
         # def make_generator():
@@ -145,10 +143,8 @@ class BatchGenerator(object):
         #                                          {w: input_type_dict[w] for w in input_fields},
         #                                          {w: input_shape_dict[w] for w in input_fields}
         #                                          )
-        filtered_instances = []
-        for instance in self.instances:
-            new_dict = {k: instance[k] for k in input_fields}
-            filtered_instances.append(new_dict)
+
+        filtered_instances = [{k: instance[k] for k in input_fields} for instance in self.instances]
 
         # 2. Character extracting function
         # def extract_char(token, default_value="<PAD>"):
@@ -172,7 +168,7 @@ class BatchGenerator(object):
         #                                                                                 num_oov_buckets=1)
 
         # 4. Some preprocessing, including char extraction, lowercasing, length
-        def transform_new_instance(instance):
+        def transform_new_instance(instance, input_type_dict):
             context_tokens = instance['context_tokens']
             question_tokens = instance['question_tokens']
 
@@ -184,8 +180,8 @@ class BatchGenerator(object):
             #     instance['question_char'] = tf.cast(char_table.lookup(question_char), tf.int32)
 
             # if do_lowercasing, we do it in get_word_idx function
-            instance['context_ids'] = list(map(self.vocab.get_word_idx, context_tokens))
-            instance['question_ids'] = list(map(self.vocab.get_word_idx, question_tokens))
+            instance['context_ids'] = [self.vocab.get_word_idx(token) for token in context_tokens]
+            instance['question_ids'] = [self.vocab.get_word_idx(token) for token in question_tokens]
             instance['context_len'] = len(context_tokens)
             instance['question_len'] = len(question_tokens)
             # if len(self.feature_vocab) > 0:
@@ -194,9 +190,13 @@ class BatchGenerator(object):
             #             if field.endswith(feature_name):
             #                 instance[field] = tf.cast(table.lookup(instance[field]), tf.int32)
             #                 break
+
+            for field, field_type in input_type_dict.items():
+                if field_type == str:
+                    del instance[field]
+
             return instance
-        # dataset = dataset.map(lambda fields: transform_new_instance(fields))
-        new_instances = list(map(transform_new_instance, filtered_instances))
+        new_instances = [transform_new_instance(instance, input_type_dict) for instance in filtered_instances]
 
         # 6. Padding and batching
         # def build_padded_shape(output_shapes):

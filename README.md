@@ -32,6 +32,7 @@ For help or issues using this toolkit, please submit a GitHub issue or by email 
 
 ## Reference(code and paper)
 - [sogou MRCToolkit Code](https://github.com/sogou/SMRCToolkit)
+- [allenai bi-att-flow Code](https://github.com/allenai/bi-att-flow)
 - [Highway Networks Paper](https://arxiv.org/pdf/1505.00387.pdf)
 - [BIDAF Paper](https://arxiv.org/pdf/1611.01603.pdf)
 

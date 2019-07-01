@@ -9,11 +9,16 @@ from pytorch_mrc.train.trainer import Trainer
 
 
 class BaseModel(nn.Module):
-    def __init__(self, vocab=None):
+    def __init__(self, vocab=None, device=None):
         super(BaseModel, self).__init__()
 
         self.vocab = vocab
-        self.initialized = False
+
+        if not isinstance(device, torch.device):
+            raise TypeError('device must be the instance of `torch.device`, not the instance of `{}`'.format(type(device)))
+        self.device = device
+
+        # self.initialized = False
         self.ema_decay = 0
 
     def __del__(self):
@@ -24,7 +29,7 @@ class BaseModel(nn.Module):
         # TODO
         # var_list = None returns the list of all saveable variables
         pass
-        self.initialized = True
+        # self.initialized = True
 
     def save(self, path, global_step=None, var_list=None):
         # TODO
@@ -40,27 +45,24 @@ class BaseModel(nn.Module):
         # TODO There are still some problems with logic.
         if not self.training:
             raise Exception("Only in the train mode, you can update the weights")
-
-        if self.optimizer is not None:
-            self.optimizer.step()
-            # self.optimizer.zero_grad()
-        else:
+        if self.optimizer is None:
             raise Exception("The model need to compile!")
+
+        self.optimizer.step()
+        # self.optimizer.zero_grad()
+
 
     def get_best_answer(self, *input):
         raise NotImplementedError
 
     def train_and_evaluate(self, train_generator, eval_generator, evaluator, epochs=1, episodes=1,
                            save_dir=None, summary_dir=None, save_summary_steps=10):
-        if not self.initialized:
-            pass
-
-        Trainer.train_and_evaluate(self, train_generator, eval_generator, evaluator, epochs=epochs,
-                                    episodes=episodes,
-                                    save_dir=save_dir, summary_dir=summary_dir, save_summary_steps=save_summary_steps)
+        Trainer.train_and_evaluate(self, self.device, train_generator, eval_generator, evaluator,
+                                   epochs=epochs, episodes=episodes,
+                                   save_dir=save_dir, summary_dir=summary_dir, save_summary_steps=save_summary_steps)
 
     def evaluate(self, batch_generator, evaluator):
-        Trainer.evaluate(self, batch_generator, evaluator)
+        Trainer.evaluate(self, self.device, batch_generator, evaluator)
 
     def inference(self, batch_generator):
-        Trainer.inference(self, batch_generator)
+        Trainer.inference(self, self.device, batch_generator)
