@@ -6,16 +6,18 @@ import collections
 import logging
 
 import multiprocessing
+
+
 class BatchGenerator(object):
     def __init__(self, vocab, instances, batch_size=32, use_char=True, training=False,
-                 additional_fields=None, feature_vocab=None,num_parallel_calls=0,shuffle_ratio=1.0):
+                 additional_fields=None, feature_vocab=None, num_parallel_calls=0, shuffle_ratio=1.0):
         self.instances = instances
         self.vocab = vocab
         self.batch_size = batch_size
         self.use_char = use_char
         self.training = training
         self.shuffle_ratio = shuffle_ratio
-        self.num_parallel_calls = num_parallel_calls if num_parallel_calls>0 else multiprocessing.cpu_count()//2
+        self.num_parallel_calls = num_parallel_calls if num_parallel_calls > 0 else multiprocessing.cpu_count() // 2
         self.additional_fields = additional_fields if additional_fields is not None else list()
         self.feature_vocab = feature_vocab if feature_vocab is not None else dict()
 
@@ -23,8 +25,6 @@ class BatchGenerator(object):
             raise ValueError('empty instances!!')
 
         self.dataset = self.build_input_pipeline()
-        print(self.dataset[0].keys())
-        print(self.dataset[0])
 
         def mrc_collate(batch, word_pad_idx=self.vocab.get_word_pad_idx()):
             result = {}
@@ -36,9 +36,9 @@ class BatchGenerator(object):
             # padding context and question
             for sample in batch:
                 sample['context_ids'] = (sample['context_ids'] + [word_pad_idx] *
-                                            (pad_context_len - sample['context_len']))[:pad_context_len]
+                                         (pad_context_len - sample['context_len']))[:pad_context_len]
                 sample['question_ids'] = (sample['question_ids'] + [word_pad_idx] *
-                                            (pad_question_len - sample['question_len']))[:pad_question_len]
+                                          (pad_question_len - sample['question_len']))[:pad_question_len]
             for sample in batch:
                 for key, value in sample.items():
                     result[key].append(value)
@@ -46,10 +46,10 @@ class BatchGenerator(object):
                 result[key] = torch.tensor(value)
             return result
 
-        self.dataloader = DataLoader(dataset=self.dataset,shuffle=training,
-                                      batch_size=self.batch_size,
-                                      collate_fn=mrc_collate,
-                                      num_workers=self.num_parallel_calls)
+        self.dataloader = DataLoader(dataset=self.dataset, shuffle=training,
+                                     batch_size=self.batch_size,
+                                     collate_fn=mrc_collate,
+                                     num_workers=self.num_parallel_calls)
 
     def _generator(self, dataloader):
         for batch_data in dataloader:
@@ -158,8 +158,8 @@ class BatchGenerator(object):
         # word_table = tf.contrib.lookup.index_table_from_tensor(tf.constant(word_vocab), num_oov_buckets=1)
         # 3.2 Char look-up table
         # if self.use_char:
-            # char_vocab = self.vocab.get_char_vocab()
-            # char_table = tf.contrib.lookup.index_table_from_tensor(tf.constant(char_vocab), num_oov_buckets=1)
+        # char_vocab = self.vocab.get_char_vocab()
+        # char_table = tf.contrib.lookup.index_table_from_tensor(tf.constant(char_vocab), num_oov_buckets=1)
         # 3.3 other feature look-up table
         # if len(self.feature_vocab) > 0:
         #     feature_table = {}
@@ -211,7 +211,6 @@ class BatchGenerator(object):
         #
         # padded_shapes = build_padded_shape(dataset.output_shapes)
         # dataset = dataset.padded_batch(self.batch_size, padded_shapes=padded_shapes)
-
 
         return MRCDataset(new_instances)
 

@@ -30,10 +30,13 @@
 ## Contact information
 For help or issues using this toolkit, please submit a GitHub issue or by email yingzq0116@163.com.
 
-## Reference(code and paper)
-- [sogou MRCToolkit Code](https://github.com/sogou/SMRCToolkit)
-- [allenai bi-att-flow Code](https://github.com/allenai/bi-att-flow)
-- [Highway Networks Paper](https://arxiv.org/pdf/1505.00387.pdf)
-- [BIDAF Paper](https://arxiv.org/pdf/1611.01603.pdf)
+## Reference Code
+- [sogou MRCToolkit](https://github.com/sogou/SMRCToolkit)
+- [allenai bi-att-flow](https://github.com/allenai/bi-att-flow)
+
+## Reference Paper
+- [BIDAF](https://arxiv.org/pdf/1611.01603.pdf)
+- [Highway Networks](https://arxiv.org/pdf/1505.00387.pdf)
+- [CNN for Sentence Classification](https://arxiv.org/pdf/1408.5882.pdf)
 
 ## License

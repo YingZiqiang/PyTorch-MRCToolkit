@@ -5,7 +5,6 @@ sys.path.append('../..')
 from pytorch_mrc.data.vocabulary import Vocabulary
 from pytorch_mrc.dataset.squad import SquadReader, SquadEvaluator
 from pytorch_mrc.model.bidaf import BiDAF
-# import tensorflow as tf
 import logging
 import torch
 from pytorch_mrc.data.batch_generator import BatchGenerator
@@ -14,7 +13,7 @@ from pytorch_mrc.data.batch_generator import BatchGenerator
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 data_folder = '/home/len/yingzq/nlp/mrc_dataset/squad-v1.1/'
 embedding_folder = '/home/len/yingzq/nlp/mrc_dataset/word_embeddings/'
-train_file = data_folder + "dev-v1.1.json"
+train_file = data_folder + "train-v1.1.json"
 dev_file = data_folder + "dev-v1.1.json"
 embedding_file = 'glove.6B.100d.txt'
 

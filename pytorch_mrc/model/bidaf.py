@@ -18,9 +18,8 @@ from pytorch_mrc.nn.ops import masked_softmax, weighted_sum, mask_logits
 
 class BiDAF(BaseModel):
     def __init__(self, vocab, device, pretrained_word_embedding=None, word_embedding_size=100, char_embedding_size=8,
-                 char_conv_filters=100,
-                 char_conv_kernel_size=5, rnn_hidden_size=100,
-                 dropout_prob=0.2, max_answer_len=17, word_embedding_trainable=False,use_elmo=False,elmo_local_path=None,
+                 char_conv_filters=100, char_conv_kernel_size=5, rnn_hidden_size=100, dropout_prob=0.2,
+                 max_answer_len=17, word_embedding_trainable=False, use_elmo=False, elmo_local_path=None,
                  enable_na_answer=False):
         super(BiDAF, self).__init__(vocab, device)
         self.rnn_hidden_size = rnn_hidden_size
@@ -32,35 +31,34 @@ class BiDAF(BaseModel):
         self.char_conv_kernel_size = char_conv_kernel_size
         self.max_answer_len = max_answer_len
         self.use_elmo = use_elmo
-        self.elmo_local_path= elmo_local_path
+        self.elmo_local_path = elmo_local_path
         self.word_embedding_trainable = word_embedding_trainable
-        self.enable_na_answer = enable_na_answer # for squad2.0
+        self.enable_na_answer = enable_na_answer  # for squad2.0
 
         # Embedding
         # TODO UNK token need to handle and char embed need to do
         self.word_embedding = Embedding(pretrained_embedding=pretrained_word_embedding,
                                         embedding_shape=(len(vocab.get_word_vocab()), word_embedding_size),
                                         trainable=word_embedding_trainable)
-        # char_embedding = Embedding(embedding_shape=(len(self.vocab.get_char_vocab()), self.char_embedding_size),
+        # self.char_embedding = Embedding(embedding_shape=(len(self.vocab.get_char_vocab()), self.char_embedding_size),
         #                            trainable=True, init_scale=0.2)
 
         # TODO Encode Layer, maybe context and question need to encode separately
         self.encode_phrase_lstm = BiLSTM(100, rnn_hidden_size)
 
         # Attention Flow Layer
-        self.bi_attention = BiAttention(TriLinear(input_units=2*rnn_hidden_size))
+        self.bi_attention = BiAttention(TriLinear(input_units=2 * rnn_hidden_size))
 
         # Modeling Layer
-        self.modeling_lstm = BiLSTM(8*rnn_hidden_size, rnn_hidden_size)
+        self.modeling_lstm = BiLSTM(8 * rnn_hidden_size, rnn_hidden_size)
 
         # Output Layer
-        self.start_pred_layer = nn.Linear(10*rnn_hidden_size, 1, bias=False)
-        self.end_lstm = BiLSTM(2*rnn_hidden_size, rnn_hidden_size)
-        self.end_pred_layer = nn.Linear(10*rnn_hidden_size, 1, bias=False)
+        self.start_pred_layer = nn.Linear(10 * rnn_hidden_size, 1, bias=False)
+        self.end_lstm = BiLSTM(2 * rnn_hidden_size, rnn_hidden_size)
+        self.end_pred_layer = nn.Linear(10 * rnn_hidden_size, 1, bias=False)
 
         # TODO Dropout
         self.dropout = nn.Dropout(p=self.drop_prob)
-
 
     def forward(self, data):
         # Parsing data
@@ -80,7 +78,7 @@ class BiDAF(BaseModel):
         # elmo embedding
         # TODO
 
-        #concat word and char
+        # concat word and char
         # TODO
 
         # 1.3 Highway network
@@ -97,7 +95,7 @@ class BiDAF(BaseModel):
         c2q, q2c = self.bi_attention(context_repr, question_repr, context_len, question_len)
 
         # 4. Modeling layer
-        final_merged_context = torch.cat([context_repr, c2q, context_repr*c2q, context_repr*q2c], dim=-1)
+        final_merged_context = torch.cat([context_repr, c2q, context_repr * c2q, context_repr * q2c], dim=-1)
         modeled_context, _ = self.modeling_lstm(final_merged_context, context_len)
 
         # 5. Start prediction
@@ -131,17 +129,16 @@ class BiDAF(BaseModel):
                 return total_loss
             else:
                 output_dict = {
-                "start_prob": self.start_prob.cpu().numpy(),
-                "end_prob": self.end_prob.cpu().numpy()
+                    "start_prob": self.start_prob.cpu().numpy(),
+                    "end_prob": self.end_prob.cpu().numpy()
                 }
                 return total_loss, output_dict
         else:
             output_dict = {
-            "start_prob": self.start_prob.cpu().numpy(),
-            "end_prob": self.end_prob.cpu().numpy()
+                "start_prob": self.start_prob.cpu().numpy(),
+                "end_prob": self.end_prob.cpu().numpy()
             }
             return output_dict
-
 
     def compile(self, optimizer=torch.optim.Adam, initial_lr=0.001):
         self.optimizer = optimizer(self.parameters(), lr=initial_lr)
@@ -168,4 +165,4 @@ class BiDAF(BaseModel):
                 preds_dict[instance['qid']] = pred_answer if max_prob > output['na_prob'][i] else ''
                 na_prob[instance['qid']] = output['na_prob'][i]
 
-        return preds_dict if not self.enable_na_answer else (preds_dict,na_prob)
+        return preds_dict if not self.enable_na_answer else (preds_dict, na_prob)
