@@ -78,7 +78,7 @@ class Highway(nn.Module):
 
 class Embedding(nn.Module):
     # TODO unk token need to train always
-    def __init__(self, pretrained_embedding=None, embedding_shape=None, trainable=True, init_scale=0.02):
+    def __init__(self, pretrained_embedding=None, embedding_shape=None, trainable=True, init_scale=0.02, dtype='float'):
         super(Embedding, self).__init__()
         if pretrained_embedding is None and embedding_shape is None:
             raise ValueError("At least one of pretrained_embedding and embedding_shape must be specified!")
@@ -91,8 +91,12 @@ class Embedding(nn.Module):
             self.embedding = nn.Embedding(embedding_shape[0], embedding_shape[1])
             nn.init.uniform_(self.embedding.weight, -init_scale, init_scale)
 
-        # TODO need to float32?
-        self.embedding = self.embedding.float()
+        if dtype == 'float':
+            self.embedding = self.embedding.float()
+        elif dtype == 'double':
+            self.embedding = self.embedding.double()
+        else:
+            raise NotImplementedError('the dtype must be one of `float` and `double`.')
 
         if not trainable:
             # do not update the weight
