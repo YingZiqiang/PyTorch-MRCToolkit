@@ -76,7 +76,7 @@ class Trainer(object):
         with torch.no_grad():
             for _ in range(steps):
                 eval_batch = batch_generator.next()
-                output = model(batch_generator)
+                output = model(eval_batch)
                 for key in output.keys():
                     final_output[key] += [v for v in output[key]]
 
@@ -84,7 +84,7 @@ class Trainer(object):
 
     @staticmethod
     def train_and_evaluate(model, device, train_batch_generator, eval_batch_generator, evaluator, epochs=1, episodes=1,
-                            save_dir=None, summary_dir=None, save_summary_steps=10):
+                           save_dir=None, summary_dir=None, save_summary_steps=10):
         model.to(device)
 
         # TODO use tensorboardX
@@ -109,7 +109,7 @@ class Trainer(object):
                 episode_id = epoch * episodes + episode + 1
                 Trainer._train(model, device, train_batch_generator, current_step_num, train_summary, save_summary_steps)
 
-                if model.ema_decay>0:
+                if model.ema_decay > 0:
                     # TODO how to do it
                     pass
 
@@ -128,7 +128,7 @@ class Trainer(object):
                 metrics_string = " ; ".join("{}: {:05.3f}".format(k, v) for k, v in score.items())
                 logging.info("- Eval metrics: " + metrics_string)
 
-                if model.ema_decay>0:
+                if model.ema_decay > 0:
                     # TODO how to do it
                     pass
 
@@ -147,8 +147,8 @@ class Trainer(object):
                         logging.info("- Found new best model, saving in {}".format(best_save_path))
 
     @staticmethod
-    def evaluate(model, batch_generator, evaluator):
-        model.to(self.device)
+    def evaluate(model, device, batch_generator, evaluator):
+        model.to(device)
         batch_generator.init()
         eval_raw_dataset = batch_generator.get_raw_dataset()
 
@@ -160,8 +160,8 @@ class Trainer(object):
         logging.info("- Eval metrics: " + metrics_string)
 
     @staticmethod
-    def inference(model, batch_generator):
-        model.to(self.device)
+    def inference(model, device, batch_generator):
+        model.to(device)
         batch_generator.init()
         test_raw_dataset = batch_generator.get_raw_dataset()
         eval_num_steps = (batch_generator.get_dataset_size() +

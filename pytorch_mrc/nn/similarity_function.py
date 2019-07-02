@@ -23,7 +23,10 @@ class ProjectedDotProduct(nn.Module):
         self.activation = activation
         self.reuse_weight = reuse_weight
         self.projecting_layer = nn.Linear(t0_units, hidden_units, bias=False)
-        if not reuse_weight:
+        if reuse_weight:
+            if t0_units != t1_units:
+                raise Exception('if reuse_weight=True, t0_units must equal t1_units')
+        else:
             self.projecting_layer2 = nn.Linear(t1_units, hidden_units, bias=False)
 
     def forward(self, t0, t1):
