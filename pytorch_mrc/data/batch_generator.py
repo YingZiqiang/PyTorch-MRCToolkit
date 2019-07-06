@@ -1,62 +1,40 @@
+import logging
+import multiprocessing
+
 import torch
 from torch.utils.data import Dataset, DataLoader
-from collections import OrderedDict
-import numpy as np
-import collections
-import logging
-
-import multiprocessing
 
 
 class BatchGenerator(object):
-    def __init__(self, vocab, instances, batch_size=32, use_char=True, training=False,
-                 additional_fields=None, feature_vocab=None, num_parallel_calls=0, shuffle_ratio=1.0):
-        self.instances = instances
+    def __init__(self, vocab, instances,
+                 batch_size=32,
+                 training=False,
+                 max_context_len=1000,
+                 max_question_len=100,
+                 use_char=True,
+                 max_word_len=100,
+                 additional_fields=None,
+                 feature_vocab=None,
+                 num_parallel_calls=0):
         self.vocab = vocab
+        self.instances = instances
         self.batch_size = batch_size
-        self.use_char = use_char
         self.training = training
-        self.shuffle_ratio = shuffle_ratio
-        self.num_parallel_calls = num_parallel_calls if num_parallel_calls > 0 else multiprocessing.cpu_count() // 2
+        self.max_context_len = max_context_len
+        self.max_question_len = max_question_len
+        self.use_char = use_char
+        self.max_word_len = max_word_len
         self.additional_fields = additional_fields if additional_fields is not None else list()
         self.feature_vocab = feature_vocab if feature_vocab is not None else dict()
-
+        self.num_parallel_calls = num_parallel_calls if num_parallel_calls > 0 else multiprocessing.cpu_count() // 2
         if self.instances is None or len(self.instances) == 0:
             raise ValueError('empty instances!!')
 
-        self.dataset = self.build_input_pipeline()
-
-        def mrc_collate(batch, word_pad_idx=self.vocab.get_word_pad_idx()):
-            result = {}
-            for key in batch[0].keys():
-                result[key] = []
-            # get batch pad length, TODO 还没做截断
-            pad_context_len = max([sample['context_len'] for sample in batch])
-            pad_question_len = max([sample['question_len'] for sample in batch])
-            # padding context and question
-            for sample in batch:
-                sample['context_ids'] = (sample['context_ids'] + [word_pad_idx] *
-                                         (pad_context_len - sample['context_len']))[:pad_context_len]
-                sample['question_ids'] = (sample['question_ids'] + [word_pad_idx] *
-                                          (pad_question_len - sample['question_len']))[:pad_question_len]
-            for sample in batch:
-                for key, value in sample.items():
-                    result[key].append(value)
-            for key, value in result.items():
-                result[key] = torch.tensor(value)
-            return result
-
-        self.dataloader = DataLoader(dataset=self.dataset, shuffle=training,
-                                     batch_size=self.batch_size,
-                                     collate_fn=mrc_collate,
-                                     num_workers=self.num_parallel_calls)
-
-    def _generator(self, dataloader):
-        for batch_data in dataloader:
-            yield batch_data
+        self.dataset = self._build_dataset_pipeline()
+        self.dataloader = self._build_dataloader_pipeline()
 
     def init(self):
-        self.generator = self._generator(self.dataloader)
+        self.generator = BatchGenerator._generator(self.dataloader)
 
     def next(self):
         if self.generator is None:
@@ -72,20 +50,24 @@ class BatchGenerator(object):
     def get_raw_dataset(self):
         return self.instances
 
-    # def get_dataset(self):
-    #     return self.dataset
-    #
-    # def get_dataloader(self):
-    #     return self.dataloader
+    @staticmethod
+    def _generator(dataloader):
+        for batch_data in dataloader:
+            yield batch_data
 
     @staticmethod
-    def detect_input_type(instance, additional_fields=None):
+    def _dynamic_padding(example, pad_len, pad_thing):
+        example = (example + [pad_thing] * (pad_len - len(example)))[:pad_len]
+        return example
+
+    @staticmethod
+    def _detect_input_type(instance, additional_fields=None):
         instance_keys = instance.keys()
         fields = ['context_tokens', 'question_tokens', 'answer_start', 'answer_end']
         try:
             for f in fields:
                 assert f in instance_keys
-        except:
+        except Exception:
             raise ValueError('A instance should contain at least "context_tokens", "question_tokens", \
                              "answer_start", "answer_end" four fields!')
 
@@ -96,7 +78,7 @@ class BatchGenerator(object):
             if isinstance(value, float):
                 return torch.float32
             elif isinstance(value, int):
-                return torch.int32
+                return torch.int64
             elif isinstance(value, str):
                 return str
             elif isinstance(value, bool):
@@ -130,36 +112,11 @@ class BatchGenerator(object):
 
         return fields, input_type
 
-    def build_input_pipeline(self):
-        input_fields, input_type_dict = BatchGenerator.detect_input_type(self.instances[0], self.additional_fields)
-
-        # 1. Get data
-        # def make_generator():
-        #     for instance in self.instances:
-        #         new_dict = {k: instance[k] for k in input_fields}
-        #         yield new_dict
-        #
-        # dataset = tf.data.Dataset.from_generator(make_generator,
-        #                                          {w: input_type_dict[w] for w in input_fields},
-        #                                          {w: input_shape_dict[w] for w in input_fields}
-        #                                          )
-
+    def _build_dataset_pipeline(self):
+        # 1. Check the input-data type and filter invalid keys
+        input_fields, input_type_dict = BatchGenerator._detect_input_type(self.instances[0], self.additional_fields)
         filtered_instances = [{k: instance[k] for k in input_fields} for instance in self.instances]
 
-        # 2. Character extracting function
-        # def extract_char(token, default_value="<PAD>"):
-        #     out = tf.string_split(token, delimiter='')
-        #     out = tf.sparse.to_dense(out, default_value=default_value)
-        #     return out
-
-        # 3. Build look-up table from vocabulary
-        # 3.1 Word look-up table
-        # word_vocab = self.vocab.get_word_vocab()
-        # word_table = tf.contrib.lookup.index_table_from_tensor(tf.constant(word_vocab), num_oov_buckets=1)
-        # 3.2 Char look-up table
-        # if self.use_char:
-        # char_vocab = self.vocab.get_char_vocab()
-        # char_table = tf.contrib.lookup.index_table_from_tensor(tf.constant(char_vocab), num_oov_buckets=1)
         # 3.3 other feature look-up table
         # if len(self.feature_vocab) > 0:
         #     feature_table = {}
@@ -168,16 +125,21 @@ class BatchGenerator(object):
         #                                                                                 num_oov_buckets=1)
 
         # 4. Some preprocessing, including char extraction, lowercasing, length
-        def transform_new_instance(instance, input_type_dict):
+        def transform_new_instance(instance):
             context_tokens = instance['context_tokens']
             question_tokens = instance['question_tokens']
 
-            # if self.use_char:
-            #     context_char = extract_char(context_tokens)
-            #     context_word_len = tf.strings.length(context_tokens)
-            #     question_char = extract_char(question_tokens)
-            #     instance['context_char'] = tf.cast(char_table.lookup(context_char), tf.int32)
-            #     instance['question_char'] = tf.cast(char_table.lookup(question_char), tf.int32)
+            if self.use_char:
+                def get_seq_char_ids(word_tokens):
+                    result = []
+                    for word in word_tokens:
+                        word_char_ids = [self.vocab.get_char_idx(char) for char in word]
+                        result.append(word_char_ids)
+                    return result
+                instance['context_char_ids'] = get_seq_char_ids(context_tokens)
+                instance['question_char_ids'] = get_seq_char_ids(question_tokens)
+                instance['context_word_len'] = [len(word) for word in context_tokens]
+                instance['question_word_len'] = [len(word) for word in question_tokens]
 
             # if do_lowercasing, we do it in get_word_idx function
             instance['context_ids'] = [self.vocab.get_word_idx(token) for token in context_tokens]
@@ -196,23 +158,73 @@ class BatchGenerator(object):
                     del instance[field]
 
             return instance
-        new_instances = [transform_new_instance(instance, input_type_dict) for instance in filtered_instances]
-
-        # 6. Padding and batching
-        # def build_padded_shape(output_shapes):
-        #     padded_shapes = dict()
-        #     for field, shape in output_shapes.items():
-        #         field_dim = len(shape.as_list())
-        #         if field_dim > 0:
-        #             padded_shapes[field] = tf.TensorShape([None] * field_dim)
-        #         else:
-        #             padded_shapes[field] = tf.TensorShape([])
-        #     return padded_shapes
-        #
-        # padded_shapes = build_padded_shape(dataset.output_shapes)
-        # dataset = dataset.padded_batch(self.batch_size, padded_shapes=padded_shapes)
+        new_instances = [transform_new_instance(instance) for instance in filtered_instances]
 
         return MRCDataset(new_instances)
+
+    def _build_dataloader_pipeline(self):
+        word_pad_idx = self.vocab.get_word_pad_idx()
+        if self.use_char:
+            char_pad_idx = self.vocab.get_char_pad_idx()
+
+        def mrc_collate(batch):
+            result = {}
+            for key in batch[0].keys():
+                result[key] = []
+
+            # 1. Handle the word level sequence data
+            # 1.1 Get batch pad length
+            pad_context_len = min(self.max_context_len, max([sample['context_len'] for sample in batch]))
+            pad_question_len = min(self.max_question_len, max([sample['question_len'] for sample in batch]))
+
+            # 1.2 Padding context and question
+            for sample in batch:
+                sample['context_ids'] = BatchGenerator._dynamic_padding(sample['context_ids'], pad_context_len, word_pad_idx)
+                sample['question_ids'] = BatchGenerator._dynamic_padding(sample['question_ids'], pad_question_len, word_pad_idx)
+                sample['context_len'] = min(sample['context_len'], pad_context_len)
+                sample['question_len'] = min(sample['question_len'], pad_question_len)
+
+            # 2. Handle the char level data
+            if self.use_char:
+                # 2.1 Padding sample `char ids` and `word len` to batch max length
+                for sample in batch:
+                    sample['context_char_ids'] = BatchGenerator._dynamic_padding(
+                        sample['context_char_ids'], pad_context_len, [char_pad_idx])
+                    sample['question_char_ids'] = BatchGenerator._dynamic_padding(
+                        sample['question_char_ids'], pad_question_len, [char_pad_idx])
+                    sample['context_word_len'] = BatchGenerator._dynamic_padding(
+                        sample['context_word_len'], pad_context_len, 0)
+                    sample['question_word_len'] = BatchGenerator._dynamic_padding(
+                        sample['question_word_len'], pad_question_len, 0)
+
+                # 2.2 Get batch pad word length
+                pad_context_word_len = min(self.max_word_len, max([max(sample['context_word_len']) for sample in batch]))
+                pad_question_word_len = min(self.max_word_len, max([max(sample['question_word_len']) for sample in batch]))
+
+                # 2.3 Padding batch word len to pad word length
+                for sample in batch:
+                    sample['context_char_ids'] = [BatchGenerator._dynamic_padding(char_ids, pad_context_word_len, char_pad_idx)
+                                                  for char_ids in sample['context_char_ids']]
+                    sample['question_char_ids'] = [BatchGenerator._dynamic_padding(char_ids, pad_question_word_len, char_pad_idx)
+                                                   for char_ids in sample['question_char_ids']]
+                    sample['context_word_len'] = [min(word_len, pad_context_word_len)
+                                                  for word_len in sample['context_word_len']]
+                    sample['question_word_len'] = [min(word_len, pad_question_word_len)
+                                                   for word_len in sample['question_word_len']]
+
+            # 3. Convert batch data to `torch tensor`
+            for sample in batch:
+                for key, value in sample.items():
+                    result[key].append(value)
+            for key, value in result.items():
+                result[key] = torch.tensor(value)
+
+            return result
+
+        return DataLoader(dataset=self.dataset, shuffle=self.training,
+                          batch_size=self.batch_size,
+                          collate_fn=mrc_collate,
+                          num_workers=self.num_parallel_calls)
 
 
 class MRCDataset(Dataset):

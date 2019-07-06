@@ -33,10 +33,13 @@ For help or issues using this toolkit, please submit a GitHub issue or by email 
 ## Reference Code
 - [sogou MRCToolkit](https://github.com/sogou/SMRCToolkit)
 - [allenai bi-att-flow](https://github.com/allenai/bi-att-flow)
+- [BiDAF-pytorch](https://github.com/galsang/BiDAF-pytorch.git)
 
 ## Reference Paper
+- [Match-LSTM](https://arxiv.org/pdf/1608.07905.pdf)
 - [BIDAF](https://arxiv.org/pdf/1611.01603.pdf)
 - [Highway Networks](https://arxiv.org/pdf/1505.00387.pdf)
 - [CNN for Sentence Classification](https://arxiv.org/pdf/1408.5882.pdf)
+- [Pointer Networks](https://arxiv.org/pdf/1506.03134.pdf)
 
 ## License

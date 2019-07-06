@@ -14,6 +14,9 @@ class BaseModel(nn.Module):
 
         self.vocab = vocab
 
+        if device is None:
+            device = torch.device('cpu')
+            logging.warning('No device is assigned, given the default `cpu`')
         if not isinstance(device, torch.device):
             raise TypeError('device must be the instance of `torch.device`, not the instance of `{}`'.format(type(device)))
         self.device = device
@@ -51,15 +54,15 @@ class BaseModel(nn.Module):
         self.optimizer.step()
         # self.optimizer.zero_grad()
 
-
     def get_best_answer(self, *input):
         raise NotImplementedError
 
     def train_and_evaluate(self, train_generator, eval_generator, evaluator, epochs=1, episodes=1,
-                           save_dir=None, summary_dir=None, save_summary_steps=10):
+                           save_dir=None, summary_dir=None, save_summary_steps=10, log_every_n_batch=100):
         Trainer.train_and_evaluate(self, self.device, train_generator, eval_generator, evaluator,
                                    epochs=epochs, episodes=episodes,
-                                   save_dir=save_dir, summary_dir=summary_dir, save_summary_steps=save_summary_steps)
+                                   save_dir=save_dir, summary_dir=summary_dir, save_summary_steps=save_summary_steps,
+                                   log_every_n_batch=log_every_n_batch)
 
     def evaluate(self, batch_generator, evaluator):
         Trainer.evaluate(self, self.device, batch_generator, evaluator)

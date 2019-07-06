@@ -1,22 +1,22 @@
 # coding: utf-8
-from pytorch_mrc.utils.tokenizer import SpacyTokenizer
-from pytorch_mrc.dataset.base_dataset import BaseReader, BaseEvaluator
 import json
-from collections import OrderedDict, Counter
-from tqdm import tqdm
 import logging
 import re
 import string
+from collections import OrderedDict, Counter
+from tqdm import tqdm
+from pytorch_mrc.utils.tokenizer import SpacyTokenizer
+from pytorch_mrc.dataset.base_dataset import BaseReader, BaseEvaluator
 
 
 class SquadReader(BaseReader):
-    def __init__(self,fine_grained = False):
+    def __init__(self, fine_grained=False):
         self.tokenizer = SpacyTokenizer(fine_grained)
 
-    def read(self, file_path):
+    def read(self, file_path, context_limit=-1):
         logging.info("Reading file at %s", file_path)
         logging.info("Processing the dataset.")
-        instances = self._read(file_path)
+        instances = self._read(file_path, context_limit)
         instances = [instance for instance in tqdm(instances)]
         return instances
 
@@ -45,16 +45,17 @@ class SquadReader(BaseReader):
                     answers = answers if len(answers) > 0 else None
                     qid = question_answer['id']
                     instance = self._make_instance(context, context_tokens, context_token_spans,
-                                                   question, question_tokens, answer_char_spans, answers,qid)
-                    if len(instance['context_tokens']) > context_limit and context_limit > 0:
+                                                   question, question_tokens, answer_char_spans, answers, qid)
+                    if context_limit > 0 and len(instance['context_tokens']) > context_limit:
                         if instance['answer_start'] > context_limit or instance['answer_end'] > context_limit:
                             continue
                         else:
                             instance['context_tokens'] = instance['context_tokens'][:context_limit]
+
                     yield instance
 
     def _make_instance(self, context, context_tokens, context_token_spans, question, question_tokens,
-                       answer_char_spans=None, answers=None,qid=None):
+                       answer_char_spans=None, answers=None, qid=None):
         answer_token_starts, answer_token_ends = [], []
         if answers is not None:
             for answer_char_start, answer_char_end in answer_char_spans:
@@ -71,10 +72,10 @@ class SquadReader(BaseReader):
             "context": context,
             "context_tokens": context_tokens,
             "context_token_spans": context_token_spans,
-            "context_word_len": [len(word) for word in context_tokens ],
-            "question_word_len": [len(word) for word in question_tokens ],
+            "context_word_len": [len(word) for word in context_tokens],
+            "question_word_len": [len(word) for word in question_tokens],
             "question": question,
-            'qid':qid,
+            'qid': qid,
             "question_tokens": question_tokens,
             "answer": answers[0] if answers is not None else None,
             "answer_start": answer_token_starts[0] if answers is not None else None,

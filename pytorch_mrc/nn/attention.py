@@ -1,5 +1,3 @@
-# coding:utf-8
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -32,7 +30,7 @@ class BiAttention(nn.Module):
         context2query_attention = torch.bmm(context2query_prob, question_repr)
 
         # Query-to-context Attention in the paper
-        query2context_prob = F.softmax(sim_mat.max(-1)[0], dim=-1)
+        query2context_prob = F.softmax(sim_mat.max(-1).values, dim=-1)
         query2context_attention = torch.bmm(query2context_prob.unsqueeze(1), context_repr)
         query2context_attention = query2context_attention.repeat(1, context_repr.size(1), 1)
 

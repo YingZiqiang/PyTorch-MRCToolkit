@@ -1,4 +1,3 @@
-# coding:utf-8
 import torch
 import torch.nn as nn
 import math
@@ -70,11 +69,11 @@ class TriLinear(nn.Module):
             nn.init.xavier_uniform_(weigth)
 
     def forward(self, t0, t1):
-        t0_score = self.projecting_layer0(t0).squeeze(-1)
-        t1_score = self.projecting_layer1(t1).squeeze(-1)
+        t0_score = self.projecting_layer0(t0).squeeze(-1)  # (b, c_len, 1)
+        t1_score = self.projecting_layer1(t1).squeeze(-1)  # (b, q_len, 1)
 
         t0_dot_w = t0 * self.dot_w
-        t0_t1_score = torch.bmm(t0_dot_w, t1.transpose(1,  2))
+        t0_t1_score = torch.bmm(t0_dot_w, t1.transpose(1, 2))  # (b, c_len, q_len)
         out = t0_t1_score + t0_score.unsqueeze(2) + t1_score.unsqueeze(1)
 
         if self.bias is not None:

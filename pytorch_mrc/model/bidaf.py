@@ -1,56 +1,59 @@
-# coding:utf-8
-import os
-import logging
-from collections import OrderedDict, defaultdict
-
-import numpy as np
 import torch
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss
 
 from pytorch_mrc.model.base_model import BaseModel
-from pytorch_mrc.nn.layers import Embedding
+from pytorch_mrc.nn.layers import Embedding, Conv1DAndMaxPooling, Highway
 from pytorch_mrc.nn.recurrent import BiLSTM
 from pytorch_mrc.nn.attention import BiAttention
-from pytorch_mrc.nn.similarity_function import TriLinear, BiLinear
-from pytorch_mrc.nn.ops import masked_softmax, weighted_sum, mask_logits
+from pytorch_mrc.nn.similarity_function import TriLinear
+from pytorch_mrc.nn.ops import masked_softmax, mask_logits
 
 
 class BiDAF(BaseModel):
-    def __init__(self, vocab, device, pretrained_word_embedding=None, word_embedding_size=100, char_embedding_size=8,
-                 char_conv_filters=100, char_conv_kernel_size=5, rnn_hidden_size=100, dropout_prob=0.2,
-                 max_answer_len=17, word_embedding_trainable=False, use_elmo=False, elmo_local_path=None,
+    def __init__(self, vocab, device,
+                 pretrained_word_embedding=None,
+                 word_embedding_trainable=False,
+                 word_embedding_size=100,
+                 char_embedding_size=8,
+                 char_conv_filters=100,
+                 char_conv_kernel_size=5,
+                 use_elmo=False,
+                 elmo_local_path=None,
+                 rnn_hidden_size=100,
+                 dropout_prob=0.2,
+                 max_answer_len=17,
                  enable_na_answer=False):
         super(BiDAF, self).__init__(vocab, device)
-        self.rnn_hidden_size = rnn_hidden_size
-        self.drop_prob = dropout_prob
-        self.word_embedding_size = word_embedding_size
-        self.pretrained_word_embedding = pretrained_word_embedding
-        self.char_embedding_size = char_embedding_size
-        self.char_conv_filters = char_conv_filters
-        self.char_conv_kernel_size = char_conv_kernel_size
-        self.max_answer_len = max_answer_len
         self.use_elmo = use_elmo
         self.elmo_local_path = elmo_local_path
-        self.word_embedding_trainable = word_embedding_trainable
+        self.max_answer_len = max_answer_len
         self.enable_na_answer = enable_na_answer  # for squad2.0
 
         # Embedding
-        # TODO UNK token need to handle and char embed need to do
+        # TODO UNK token need to handle
         self.word_embedding = Embedding(pretrained_embedding=pretrained_word_embedding,
                                         embedding_shape=(len(vocab.get_word_vocab()), word_embedding_size),
                                         trainable=word_embedding_trainable)
-        # self.char_embedding = Embedding(embedding_shape=(len(self.vocab.get_char_vocab()), self.char_embedding_size),
-        #                            trainable=True, init_scale=0.2)
+        self.char_embedding = Embedding(embedding_shape=(len(vocab.get_char_vocab()), char_embedding_size),
+                                        trainable=True, init_scale=0.2)
+        emd_units = word_embedding_size + char_conv_filters
+        self.conv1d = Conv1DAndMaxPooling(char_embedding_size, char_conv_filters, char_conv_kernel_size)
+        if use_elmo:
+            # TODO
+            pass
+            # emd_units += ??
+        self.highway1 = Highway(input_units=emd_units)
+        self.highway2 = Highway(input_units=emd_units)
 
         # TODO Encode Layer, maybe context and question need to encode separately
-        self.encode_phrase_lstm = BiLSTM(100, rnn_hidden_size)
+        self.encode_phrase_lstm = BiLSTM(emd_units, rnn_hidden_size)
 
         # Attention Flow Layer
         self.bi_attention = BiAttention(TriLinear(input_units=2 * rnn_hidden_size))
 
         # Modeling Layer
-        self.modeling_lstm = BiLSTM(8 * rnn_hidden_size, rnn_hidden_size)
+        self.modeling_lstm = BiLSTM(8 * rnn_hidden_size, rnn_hidden_size, num_layers=2, drop_prob=dropout_prob)
 
         # Output Layer
         self.start_pred_layer = nn.Linear(10 * rnn_hidden_size, 1, bias=False)
@@ -58,34 +61,38 @@ class BiDAF(BaseModel):
         self.end_pred_layer = nn.Linear(10 * rnn_hidden_size, 1, bias=False)
 
         # TODO Dropout
-        self.dropout = nn.Dropout(p=self.drop_prob)
+        self.dropout = nn.Dropout(p=dropout_prob)
 
     def forward(self, data):
         # Parsing data
         context_ids, context_len = data['context_ids'], data['context_len']
         question_ids, question_len = data['question_ids'], data['question_len']
         answer_start, answer_end = data['answer_start'], data['answer_end']
+        context_char_ids, context_word_len = data['context_char_ids'], data['context_word_len']
+        question_char_ids, question_word_len = data['question_char_ids'], data['question_word_len']
 
         # 1.1 Embedding
         context_word_repr = self.word_embedding(context_ids)
-        # context_char_repr = self.char_embedding(context_char)
+        context_char_repr = self.char_embedding(context_char_ids)
         question_word_repr = self.word_embedding(question_ids)
-        # question_char_repr = self.char_embedding(question_char)
+        question_char_repr = self.char_embedding(question_char_ids)
 
         # 1.2 Char convolution
-        # TODO
+        context_char_repr = self.dropout(self.conv1d(context_char_repr))
+        question_char_repr = self.dropout(self.conv1d(question_char_repr))
 
-        # elmo embedding
-        # TODO
+        # 1.3 Concat word and char
+        context_repr = torch.cat([context_word_repr, context_char_repr], dim=-1)
+        question_repr = torch.cat([question_word_repr, question_char_repr], dim=-1)
 
-        # concat word and char
-        # TODO
+        # 1.4 ELMo embedding
+        if self.use_elmo:
+            # TODO
+            pass
 
-        # 1.3 Highway network
-        # TODO
-
-        # temp repr
-        context_repr, question_repr = context_word_repr, question_word_repr
+        # 1.5 Highway network
+        context_repr = self.highway2(self.highway1(context_repr))
+        question_repr = self.highway2(self.highway1(question_repr))
 
         # 2. Phrase encoding
         context_repr, _ = self.encode_phrase_lstm(context_repr, context_len)
@@ -104,15 +111,12 @@ class BiDAF(BaseModel):
         self.start_prob = masked_softmax(start_logits, context_len)
 
         # 6. End prediction
-        # TODO I just follow the BiDAF paper, maybe it can do better
-        # start_repr = weighted_sum(modeled_context, self.start_prob)
-        # tiled_start_repr = start_repr.unsqueeze(1).repeat(1, modeled_context.size(1), 1)
         encoded_end_repr, _ = self.end_lstm(modeled_context, context_len)
         end_logits = self.end_pred_layer(torch.cat([final_merged_context, encoded_end_repr], dim=-1))
         end_logits = end_logits.squeeze(-1)
         self.end_prob = masked_softmax(end_logits, context_len)
 
-        # 7. If train return loss, if eval return a dict
+        # 7. Retured Things. If train return loss, if eval/inference return a dict
         # TODO for squad2.0 and for multi GPUs
         if answer_start is not None and answer_end is not None:
             # sometimes the start/end positions are outside our model inputs, we ignore these terms

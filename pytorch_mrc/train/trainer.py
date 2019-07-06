@@ -11,7 +11,7 @@ class Trainer(object):
         pass
 
     @staticmethod
-    def _train(model, device, batch_generator, steps, summary_writer, save_summary_steps, log_every_n_batch=100):
+    def _train(model, device, batch_generator, steps, summary_writer, save_summary_steps, log_every_n_batch):
         model.train()
         # TODO handle the summary_writer and save_summary_steps
         total_loss, n_batch_loss = 0.0, 0.0
@@ -30,7 +30,7 @@ class Trainer(object):
                 raise ValueError("NaN loss!")
             total_loss += loss.item()
             n_batch_loss += loss.item()
-            if log_every_n_batch is not None and i > 0 and i % log_every_n_batch == 0:
+            if log_every_n_batch > 0 and i > 0 and i % log_every_n_batch == 0:
                 logging.info("- Average loss from batch {} to {} is {:05.3f}".format(
                              i - log_every_n_batch, i, n_batch_loss / log_every_n_batch))
                 n_batch_loss = 0.0
@@ -84,7 +84,7 @@ class Trainer(object):
 
     @staticmethod
     def train_and_evaluate(model, device, train_batch_generator, eval_batch_generator, evaluator, epochs=1, episodes=1,
-                           save_dir=None, summary_dir=None, save_summary_steps=10):
+                           save_dir=None, summary_dir=None, save_summary_steps=10, log_every_n_batch=100):
         model.to(device)
 
         # TODO use tensorboardX
@@ -107,7 +107,8 @@ class Trainer(object):
                 logging.info("episode {}/{}".format(episode + 1, episodes))
                 current_step_num = min(num_steps_per_episode, train_num_steps - episode * num_steps_per_episode)
                 episode_id = epoch * episodes + episode + 1
-                Trainer._train(model, device, train_batch_generator, current_step_num, train_summary, save_summary_steps)
+                Trainer._train(model, device, train_batch_generator, current_step_num,
+                               train_summary, save_summary_steps, log_every_n_batch)
 
                 if model.ema_decay > 0:
                     # TODO how to do it
