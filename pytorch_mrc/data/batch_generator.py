@@ -9,10 +9,10 @@ class BatchGenerator(object):
     def __init__(self, vocab, instances,
                  batch_size=32,
                  training=False,
-                 max_context_len=1000,
-                 max_question_len=100,
+                 max_context_len=500,
+                 max_question_len=30,
                  use_char=True,
-                 max_word_len=100,
+                 max_word_len=30,
                  additional_fields=None,
                  feature_vocab=None,
                  num_parallel_calls=0):

@@ -45,5 +45,6 @@ When implementing the MRC model, **sometimes I didn't follow the paper reproduct
 - [Highway Networks](https://arxiv.org/pdf/1505.00387.pdf)
 - [CNN for Sentence Classification](https://arxiv.org/pdf/1408.5882.pdf)
 - [Pointer Networks](https://arxiv.org/pdf/1506.03134.pdf)
+- [Variational Dropout](https://arxiv.org/pdf/1512.05287.pdf)
 
 ## License

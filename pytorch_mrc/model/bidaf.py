@@ -7,7 +7,7 @@ from pytorch_mrc.nn.layers import Embedding, Conv1DAndMaxPooling, Highway
 from pytorch_mrc.nn.recurrent import BiLSTM
 from pytorch_mrc.nn.attention import BiAttention
 from pytorch_mrc.nn.similarity_function import TriLinear
-from pytorch_mrc.nn.ops import masked_softmax, mask_logits
+from pytorch_mrc.nn.ops import masked_softmax, mask_logits, weighted_sum
 
 
 class BiDAF(BaseModel):
@@ -53,11 +53,12 @@ class BiDAF(BaseModel):
         self.bi_attention = BiAttention(TriLinear(input_units=2 * rnn_hidden_size))
 
         # Modeling Layer
-        self.modeling_lstm = BiLSTM(8 * rnn_hidden_size, rnn_hidden_size, num_layers=2, drop_prob=dropout_prob)
+        self.modeling_lstm1 = BiLSTM(8 * rnn_hidden_size, rnn_hidden_size)
+        self.modeling_lstm2 = BiLSTM(2 * rnn_hidden_size, rnn_hidden_size)
 
         # Output Layer
         self.start_pred_layer = nn.Linear(10 * rnn_hidden_size, 1, bias=False)
-        self.end_lstm = BiLSTM(2 * rnn_hidden_size, rnn_hidden_size)
+        self.end_lstm = BiLSTM(14 * rnn_hidden_size, rnn_hidden_size)
         self.end_pred_layer = nn.Linear(10 * rnn_hidden_size, 1, bias=False)
 
         # TODO Dropout
@@ -78,8 +79,8 @@ class BiDAF(BaseModel):
         question_char_repr = self.char_embedding(question_char_ids)
 
         # 1.2 Char convolution
-        context_char_repr = self.dropout(self.conv1d(context_char_repr))
-        question_char_repr = self.dropout(self.conv1d(question_char_repr))
+        context_char_repr = self.dropout(self.conv1d(context_char_repr, context_word_len))
+        question_char_repr = self.dropout(self.conv1d(question_char_repr, question_word_len))
 
         # 1.3 Concat word and char
         context_repr = torch.cat([context_word_repr, context_char_repr], dim=-1)
@@ -95,24 +96,30 @@ class BiDAF(BaseModel):
         question_repr = self.highway2(self.highway1(question_repr))
 
         # 2. Phrase encoding
-        context_repr, _ = self.encode_phrase_lstm(context_repr, context_len)
-        question_repr, _ = self.encode_phrase_lstm(question_repr, question_len)
+        context_repr, _ = self.encode_phrase_lstm(self.dropout(context_repr), context_len)
+        question_repr, _ = self.encode_phrase_lstm(self.dropout(question_repr), question_len)
 
         # 3. Bi-Attention
         c2q, q2c = self.bi_attention(context_repr, question_repr, context_len, question_len)
 
         # 4. Modeling layer
         final_merged_context = torch.cat([context_repr, c2q, context_repr * c2q, context_repr * q2c], dim=-1)
-        modeled_context, _ = self.modeling_lstm(final_merged_context, context_len)
+        modeled_context1, _ = self.modeling_lstm1(self.dropout(final_merged_context), context_len)
+        modeled_context2, _ = self.modeling_lstm2(self.dropout(modeled_context1), context_len)
+        modeled_context = modeled_context1 + modeled_context2
 
         # 5. Start prediction
-        start_logits = self.start_pred_layer(torch.cat([final_merged_context, modeled_context], dim=-1))
+        start_logits = self.start_pred_layer(self.dropout(torch.cat([final_merged_context, modeled_context], dim=-1)))
         start_logits = start_logits.squeeze(-1)
         self.start_prob = masked_softmax(start_logits, context_len)
 
         # 6. End prediction
-        encoded_end_repr, _ = self.end_lstm(modeled_context, context_len)
-        end_logits = self.end_pred_layer(torch.cat([final_merged_context, encoded_end_repr], dim=-1))
+        start_repr = weighted_sum(modeled_context, self.start_prob)
+        tiled_start_repr = start_repr.unsqueeze(1).repeat(1, modeled_context.size(1), 1)
+        encoded_end_repr, _ = self.end_lstm(self.dropout(torch.cat(
+            [final_merged_context, modeled_context, tiled_start_repr, modeled_context * tiled_start_repr], dim=-1)),
+            context_len)
+        end_logits = self.end_pred_layer(self.dropout(torch.cat([final_merged_context, encoded_end_repr], dim=-1)))
         end_logits = end_logits.squeeze(-1)
         self.end_prob = masked_softmax(end_logits, context_len)
 

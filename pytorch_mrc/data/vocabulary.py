@@ -1,10 +1,8 @@
-# coding:utf-8
 from tqdm import tqdm
-from collections import Counter, OrderedDict
+from collections import Counter
 import numpy as np
 import logging
 import json
-import os
 
 
 class Vocabulary(object):
