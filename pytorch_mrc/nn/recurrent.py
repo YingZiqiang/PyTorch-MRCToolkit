@@ -112,7 +112,7 @@ class BiGRU(BaseRNN):
 class BaseMultiLayerRNN(nn.Module):
     """Multi-Layer RNNs Base Model. In particular, the input of each RNN layer uses `Variational Dropout`"""
     def __init__(self, rnn_type, input_size, hidden_size, num_layers,
-                 batch_first=True, bidirectional=False, drop_prob=0.0):
+                 batch_first=True, bidirectional=False, input_drop_prob=0.0):
         super(BaseMultiLayerRNN, self).__init__()
         self.rnn_type = rnn_type.lower()
         self.batch_first = batch_first
@@ -128,7 +128,7 @@ class BaseMultiLayerRNN(nn.Module):
             self.rnn_list.append(BaseRNN(self.rnn_type, input_size_, hidden_size,
                                          batch_first=True, bidirectional=bidirectional))
 
-        self.dropout = VariationalDropout(p=drop_prob, batch_first=True)
+        self.dropout = VariationalDropout(p=input_drop_prob, batch_first=True)
 
     def forward(self, inputs, lengths, initial_state=None, concat_layers=True):
         """

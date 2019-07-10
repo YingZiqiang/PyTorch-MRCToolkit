@@ -7,7 +7,7 @@ from pytorch_mrc.nn.layers import Embedding, Conv1DAndMaxPooling, Highway
 from pytorch_mrc.nn.recurrent import BiLSTM
 from pytorch_mrc.nn.attention import BiAttention
 from pytorch_mrc.nn.similarity_function import TriLinear
-from pytorch_mrc.nn.ops import masked_softmax, mask_logits, weighted_sum
+from pytorch_mrc.nn.util import masked_softmax, mask_logits, weighted_sum
 
 
 class BiDAF(BaseModel):
