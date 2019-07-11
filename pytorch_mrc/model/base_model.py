@@ -1,10 +1,7 @@
 # coding:utf-8
+import logging
 import torch
 import torch.nn as nn
-import logging
-import numpy as np
-import os
-from collections import OrderedDict, defaultdict
 from pytorch_mrc.train.trainer import Trainer
 
 

@@ -1,3 +1,8 @@
+"""
+This module implements most useful network layers in Machine Reading Comprehension(MRC) Field.
+Such as Highway Network, Pointer Network and so on.
+"""
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -132,7 +137,7 @@ class PointerNetwork(nn.Module):
     Implements the Pointer Network.
     """
 
-    def __init__(self, context_size, question_size, hidden_size=75,
+    def __init__(self, context_dim, question_dim, hidden_dim=75,
                  cell_type='gru', drop_prob=0.0, batch_first=True):
         super(PointerNetwork, self).__init__()
         self.batch_first = batch_first
@@ -146,22 +151,22 @@ class PointerNetwork(nn.Module):
             cell_cls = nn.RNNCell
         else:
             raise NotImplementedError('cell_type must be one of rnn/gru/lstm')
-        self.cell = cell_cls(context_size, question_size)
+        self.cell = cell_cls(context_dim, question_dim)
 
         self.question_linear = nn.Sequential(
             VariationalDropout(drop_prob),
-            nn.Linear(2 * question_size, hidden_size, bias=False),
+            nn.Linear(2 * question_dim, hidden_dim, bias=False),
             nn.Tanh(),
-            nn.Linear(hidden_size, 1, bias=False),
+            nn.Linear(hidden_dim, 1, bias=False),
         )
         self.context_linear = nn.Sequential(
             VariationalDropout(drop_prob),
-            nn.Linear(question_size + context_size, hidden_size, bias=False),
+            nn.Linear(question_dim + context_dim, hidden_dim, bias=False),
             nn.Tanh(),
-            nn.Linear(hidden_size, 1, bias=False),
+            nn.Linear(hidden_dim, 1, bias=False),
         )
 
-        self.random_attn_vector = nn.Parameter(torch.randn(1, 1, question_size), requires_grad=True)
+        self.random_attn_vector = nn.Parameter(torch.randn(1, 1, question_dim), requires_grad=True)
 
     def forward(self, context_repr, question_repr, context_mask, question_mask):
         """

@@ -7,7 +7,7 @@ from pytorch_mrc.nn.layers import Embedding, Conv1DAndMaxPooling, Highway
 from pytorch_mrc.nn.recurrent import BiLSTM
 from pytorch_mrc.nn.attention import BiAttention
 from pytorch_mrc.nn.similarity_function import TriLinear
-from pytorch_mrc.nn.util import masked_softmax, mask_logits, weighted_sum
+from pytorch_mrc.nn.util import sequence_mask, masked_softmax, mask_logits, weighted_sum
 
 
 class BiDAF(BaseModel):
@@ -37,20 +37,19 @@ class BiDAF(BaseModel):
                                         trainable=word_embedding_trainable)
         self.char_embedding = Embedding(embedding_shape=(len(vocab.get_char_vocab()), char_embedding_size),
                                         trainable=True, init_scale=0.2)
-        emd_units = word_embedding_size + char_conv_filters
+        embedding_dim = word_embedding_size + char_conv_filters
         self.conv1d = Conv1DAndMaxPooling(char_embedding_size, char_conv_filters, char_conv_kernel_size)
         if use_elmo:
             # TODO
             pass
-            # emd_units += ??
-        self.highway1 = Highway(input_units=emd_units)
-        self.highway2 = Highway(input_units=emd_units)
+            # embedding_dim += ??
+        self.highway = Highway(input_dim=embedding_dim, num_layers=2)
 
         # TODO Encode Layer, maybe context and question need to encode separately
-        self.encode_phrase_lstm = BiLSTM(emd_units, rnn_hidden_size)
+        self.encode_phrase_lstm = BiLSTM(embedding_dim, rnn_hidden_size)
 
         # Attention Flow Layer
-        self.bi_attention = BiAttention(TriLinear(input_units=2 * rnn_hidden_size))
+        self.bi_attention = BiAttention(TriLinear(input_dim=2 * rnn_hidden_size))
 
         # Modeling Layer
         self.modeling_lstm1 = BiLSTM(8 * rnn_hidden_size, rnn_hidden_size)
@@ -61,7 +60,6 @@ class BiDAF(BaseModel):
         self.end_lstm = BiLSTM(14 * rnn_hidden_size, rnn_hidden_size)
         self.end_pred_layer = nn.Linear(10 * rnn_hidden_size, 1, bias=False)
 
-        # TODO Dropout
         self.dropout = nn.Dropout(p=dropout_prob)
 
     def forward(self, data):
@@ -71,6 +69,10 @@ class BiDAF(BaseModel):
         answer_start, answer_end = data['answer_start'], data['answer_end']
         context_char_ids, context_word_len = data['context_char_ids'], data['context_word_len']
         question_char_ids, question_word_len = data['question_char_ids'], data['question_word_len']
+
+        # compute mask
+        context_mask = sequence_mask(context_len, maxlen=context_ids.size(1))
+        question_mask = sequence_mask(question_len, maxlen=question_ids.size(1))
 
         # 1.1 Embedding
         context_word_repr = self.word_embedding(context_ids)
@@ -92,15 +94,15 @@ class BiDAF(BaseModel):
             pass
 
         # 1.5 Highway network
-        context_repr = self.highway2(self.highway1(context_repr))
-        question_repr = self.highway2(self.highway1(question_repr))
+        context_repr = self.highway(context_repr)
+        question_repr = self.highway(question_repr)
 
         # 2. Phrase encoding
         context_repr, _ = self.encode_phrase_lstm(self.dropout(context_repr), context_len)
         question_repr, _ = self.encode_phrase_lstm(self.dropout(question_repr), question_len)
 
         # 3. Bi-Attention
-        c2q, q2c = self.bi_attention(context_repr, question_repr, context_len, question_len)
+        c2q, q2c = self.bi_attention(context_repr, question_repr, context_mask, question_mask)
 
         # 4. Modeling layer
         final_merged_context = torch.cat([context_repr, c2q, context_repr * c2q, context_repr * q2c], dim=-1)
@@ -111,7 +113,7 @@ class BiDAF(BaseModel):
         # 5. Start prediction
         start_logits = self.start_pred_layer(self.dropout(torch.cat([final_merged_context, modeled_context], dim=-1)))
         start_logits = start_logits.squeeze(-1)
-        self.start_prob = masked_softmax(start_logits, context_len)
+        self.start_prob = masked_softmax(start_logits, context_mask)
 
         # 6. End prediction
         start_repr = weighted_sum(modeled_context, self.start_prob)
@@ -121,7 +123,7 @@ class BiDAF(BaseModel):
             context_len)
         end_logits = self.end_pred_layer(self.dropout(torch.cat([final_merged_context, encoded_end_repr], dim=-1)))
         end_logits = end_logits.squeeze(-1)
-        self.end_prob = masked_softmax(end_logits, context_len)
+        self.end_prob = masked_softmax(end_logits, context_mask)
 
         # 7. Retured Things. If train return loss, if eval/inference return a dict
         # TODO for squad2.0 and for multi GPUs
@@ -132,8 +134,8 @@ class BiDAF(BaseModel):
             answer_end.clamp_(0, ignored_index)
 
             loss_fct = CrossEntropyLoss(ignore_index=ignored_index)
-            start_loss = loss_fct(mask_logits(start_logits, context_len), answer_start)
-            end_loss = loss_fct(mask_logits(end_logits, context_len), answer_end)
+            start_loss = loss_fct(mask_logits(start_logits, context_mask), answer_start)
+            end_loss = loss_fct(mask_logits(end_logits, context_mask), answer_end)
             total_loss = (start_loss + end_loss) / 2
 
             if self.training:

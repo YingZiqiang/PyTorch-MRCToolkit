@@ -1,3 +1,12 @@
+"""
+This module is the wrapper of recurrent neural networks(RNNs) in Pytorch.
+1. we implement BaseRNN which is the wrapper of ``pack_padded_sequence``,
+    ``pad_packed_sequence`` and standard RNNs
+2. we implement BaseMultiLayerRNN which uses the VariationalDropout at each RNN layers input,
+    rather than use standard Dropout between RNN layers.
+3. we inherit the classes described above and implement some common RNNs class, e.g. BiGRU, MultiLayerBiGRU.
+"""
+
 import torch
 import torch.nn as nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
@@ -111,14 +120,15 @@ class BiGRU(BaseRNN):
 
 class BaseMultiLayerRNN(nn.Module):
     """Multi-Layer RNNs Base Model. In particular, the input of each RNN layer uses `Variational Dropout`"""
+
     def __init__(self, rnn_type, input_size, hidden_size, num_layers,
                  batch_first=True, bidirectional=False, input_drop_prob=0.0):
         super(BaseMultiLayerRNN, self).__init__()
         self.rnn_type = rnn_type.lower()
         self.batch_first = batch_first
 
-        if num_layers < 2:
-            raise ValueError('num_layers must be a number greater than 1')
+        # if num_layers < 2:
+        #     raise ValueError('num_layers must be a number greater than 1')
 
         self.rnn_list = nn.ModuleList(
             [BaseRNN(self.rnn_type, input_size, hidden_size, batch_first=True, bidirectional=bidirectional)])
@@ -174,14 +184,18 @@ class BaseMultiLayerRNN(nn.Module):
 
 
 class MultiLayerBiGRU(BaseMultiLayerRNN):
-    def __init__(self, input_size, hidden_size, num_layers, drop_prob=0.0):
+    def __init__(self, input_size, hidden_size, num_layers, input_drop_prob=0.0):
         super(MultiLayerBiGRU, self).__init__('GRU', input_size, hidden_size,
-                                              num_layers=num_layers, drop_prob=drop_prob,
-                                              batch_first=True, bidirectional=True)
+                                              num_layers=num_layers,
+                                              input_drop_prob=input_drop_prob,
+                                              batch_first=True,
+                                              bidirectional=True)
 
 
 class MultiLayerBiLSTM(BaseMultiLayerRNN):
-    def __init__(self, input_size, hidden_size, num_layers, drop_prob=0.0):
+    def __init__(self, input_size, hidden_size, num_layers, input_drop_prob=0.0):
         super(MultiLayerBiLSTM, self).__init__('LSTM', input_size, hidden_size,
-                                               num_layers=num_layers, drop_prob=drop_prob,
-                                               batch_first=True, bidirectional=True)
+                                               num_layers=num_layers,
+                                               input_drop_prob=input_drop_prob,
+                                               batch_first=True,
+                                               bidirectional=True)

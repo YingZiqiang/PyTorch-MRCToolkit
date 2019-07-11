@@ -1,9 +1,11 @@
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from pytorch_mrc.nn.util import sequence_mask, masked_softmax
 from pytorch_mrc.nn.recurrent import GRU
+from pytorch_mrc.nn.similarity_function import MLPSimilarity
 
 VERY_NEGATIVE_NUMBER = -1e29
 
@@ -27,9 +29,9 @@ class BiAttention(nn.Module):
             context2query and query2context attention
         """
         sim_mat = self.similarity_function(context_repr, question_repr)
-        if len(context_mask.size()) == 1:
+        if context_mask.dim() == 1:
             context_mask = sequence_mask(context_mask, maxlen=context_repr.size(1))
-        if len(question_mask.size()) == 1:
+        if question_mask.dim() == 1:
             question_mask = sequence_mask(question_mask, maxlen=question_repr.size(1))
         mask = context_mask.unsqueeze(2) * question_mask.unsqueeze(1)  # B*CL*QL
         sim_mat = sim_mat + (1. - mask) * VERY_NEGATIVE_NUMBER
@@ -45,42 +47,69 @@ class BiAttention(nn.Module):
         return context2query_attention, query2context_attention
 
 
-class CoAttention(nn.Module):
-    """Gated attention RNNs in R-Net Paper. Here we call it Co-attention and we have made some changes."""
+# class CoAttention(nn.Module):
+#     """Gated attention RNNs in R-Net Paper. Here we call it Co-attention and we have made some changes."""
+#
+#     def __init__(self, input_dim, hidden_dim):
+#         # self.mlp_sim = MLPSimilarity(input_dim, input_dim, hidden_dim, bias=False)
+#         self.context_dense = nn.Linear(input_dim, hidden_dim)
+#         self.question_dense = nn.Linear(input_dim, hidden_dim)
+#         self.score_dense = nn.Linear(hidden_dim, 1)
+#         self.gate_dense = nn.Linear(2 * input_dim, 2 * input_dim)
+#         self.co_att_gru = GRU(2 * input_dim, hidden_dim)
+#
+#     def forward(self, context_repr, question_repr, context_len, question_mask):
+#         co_att_context = self.context_dense(context_repr).unsqueeze(2)  # B*CL*1*H
+#         co_att_question = self.question_dense(question_repr).unsqueeze(1)  # B*1*QL*H
+#         co_att_score = self.score_dense(F.tanh(co_att_context + co_att_question)).squeeze(-1)  # B*CL*QL
+#         co_att_sim = masked_softmax(co_att_score, question_mask.unsqueeze(1).repeat(1, co_att_score.size(1), 1))  # B*CL*QL
+#         co_att_rnn_input = torch.cat([context_repr, torch.bmm(co_att_sim, question_repr)], dim=-1)  # B*CL*(H*2*3*2)
+#
+#         # Another Gate
+#         gate = torch.sigmoid(self.gate_dense(co_att_rnn_input))
+#         co_att_rnn_input = co_att_rnn_input * gate
+#
+#         co_att_output, _ = self.co_att_gru(co_att_rnn_input, context_len)
+#
+#         return co_att_output
 
-    def __init__(self, input_dim, hidden_size):
-        self.context_dense = nn.Linear(input_dim, hidden_size)
-        self.question_dense = nn.Linear(input_dim, hidden_size)
-        self.score_dense = nn.Linear(hidden_size, 1)
+
+class CoAttention(nn.Module):
+    """
+    We do those in Co-Attention:
+    1. Use MLP similarity function to compute similarity score
+    2. Use masked softmax to gain similarity between context and valid question
+    3. Add another gate
+    4. Use one layer GRU to get the outputs
+    """
+
+    def __init__(self, input_dim, hidden_dim):
+        super(CoAttention, self).__init__()
+        self.mlp_sim_layer = MLPSimilarity(input_dim, input_dim, hidden_dim, bias=False)
         self.gate_dense = nn.Linear(2 * input_dim, 2 * input_dim)
-        self.co_att_gru = GRU(2 * input_dim, hidden_size)
+        self.gru = GRU(2 * input_dim, hidden_dim)
 
     def forward(self, context_repr, question_repr, context_len, question_mask):
-        co_att_context = self.context_dense(context_repr).unsqueeze(2)  # B*CL*1*H
-        co_att_question = self.question_dense(question_repr).unsqueeze(1)  # B*1*QL*H
-        co_att_score = self.score_dense(F.tanh(co_att_context + co_att_question)).squeeze(-1)  # B*CL*QL
-        co_att_sim = masked_softmax(co_att_score, question_mask.unsqueeze(1).repeat(1, co_att_score.size(1), 1))  # B*CL*QL
-        co_att_rnn_input = torch.cat([context_repr, torch.bmm(co_att_sim, question_repr)], dim=-1)  # B*CL*(H*2*3*2)
-
-        # Another Gate
-        gate = torch.sigmoid(self.gate_dense(co_att_rnn_input))
-        co_att_rnn_input = co_att_rnn_input * gate
-
-        co_att_output, _ = self.co_att_gru(co_att_rnn_input, context_len)
-
-        return co_att_output
+        mlp_att_score = self.mlp_sim_layer(context_repr, question_repr)  # B*CL*QL
+        similarity = masked_softmax(mlp_att_score, question_mask.unsqueeze(1), dim=-1)  # B*CL*QL
+        rnn_input = torch.cat([context_repr, torch.bmm(similarity, question_repr)], dim=-1)  # B*CL*(2*IN_D)
+        # Add another Gate
+        gate = torch.sigmoid(self.gate_dense(rnn_input))
+        rnn_input = rnn_input * gate
+        outputs, _ = self.gru(rnn_input, context_len)
+        return outputs
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, heads, input_dim, hidden_dim, attention_on_itself=True):
+    def __init__(self, heads, input_dim, units, attention_on_itself=True):
         super(MultiHeadAttention, self).__init__()
         self.heads = heads
         self.input_dim = input_dim
-        self.hidden_dim = hidden_dim
+        self.units = units
         self.attention_on_itself = attention_on_itself  # only workable when query==key
-        self.dense_layers = nn.ModuleList([nn.Linear(input_dim, hidden_dim) for _ in range(3)])
+        self.dense_layers = nn.ModuleList([nn.Linear(input_dim, units) for _ in range(3)])
 
-    def forward(self, query, key, value, mask=None):
+    def forward(self, query, key, value, key_mask=None):
         batch_size, max_query_len, max_key_len = query.size(0), query.size(1), key.size(1)
         wq = self.dense_layers[0](query).reshape(
             [batch_size, max_query_len, self.heads, self.units // self.heads]).permute(2, 0, 1, 3)  # Head*B*QL*(U/Head)
@@ -89,12 +118,12 @@ class MultiHeadAttention(nn.Module):
         wv = self.dense_layers[2](value).reshape(
             [batch_size, max_key_len, self.heads, self.units // self.heads]).permute(2, 0, 1, 3)  # Head*B*KL*(U/Head)
 
-        attention_score = torch.matmul(wq, wk.transpose(2, 3)) / torch.sqrt(float(self.units) / self.heads)  # Head*B*QL*KL
-        if query == key and not self.attention_on_itself:
+        attention_score = torch.matmul(wq, wk.transpose(2, 3)) / math.sqrt(float(self.units) / self.heads)  # Head*B*QL*KL
+        if torch.equal(query, key) and not self.attention_on_itself:
             attention_score += torch.diag(wq.new_zeros(max_key_len) - VERY_NEGATIVE_NUMBER)
-        if mask is not None:
-            if len(mask.size()) == 1:
-                mask = sequence_mask(mask, maxlen=max_key_len)
-            attention_score += (1.0 - mask.unsqueeze(1).unsqueeze(0)) * VERY_NEGATIVE_NUMBER
+        if key_mask is not None:
+            if key_mask.dim() == 1:
+                key_mask = sequence_mask(key_mask, maxlen=max_key_len)
+            attention_score += (1.0 - key_mask.unsqueeze(1).unsqueeze(0)) * VERY_NEGATIVE_NUMBER
         similarity = F.softmax(attention_score, dim=-1)  # Head*B*QL*KL
         return torch.matmul(similarity, wv).permute(1, 2, 0, 3).reshape([batch_size, max_query_len, self.units])  # B*QL*U
