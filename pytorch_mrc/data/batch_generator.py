@@ -1,3 +1,4 @@
+import pickle
 import logging
 import multiprocessing
 
@@ -6,16 +7,22 @@ from torch.utils.data import Dataset, DataLoader
 
 
 class BatchGenerator(object):
-    def __init__(self, vocab, instances,
-                 batch_size=32,
-                 training=False,
-                 max_context_len=500,
-                 max_question_len=30,
-                 use_char=True,
-                 max_word_len=30,
-                 additional_fields=None,
-                 feature_vocab=None,
-                 num_parallel_calls=0):
+    def __init__(self):
+        pass
+
+    def build(self, vocab, instances,
+              batch_size=32,
+              training=False,
+              max_context_len=500,
+              max_question_len=30,
+              use_char=True,
+              max_word_len=30,
+              additional_fields=None,
+              feature_vocab=None,
+              num_parallel_calls=0):
+        """
+        Build the batch generator, including build dataset and build dataloader
+        """
         self.vocab = vocab
         self.instances = instances
         self.batch_size = batch_size
@@ -33,10 +40,40 @@ class BatchGenerator(object):
         self.dataset = self._build_dataset_pipeline()
         self.dataloader = self._build_dataloader_pipeline()
 
+    def save(self, file_path):
+        """
+        Save the attribute of BatchGenerator
+        """
+        logging.info("Saving BatchGenerator at {}".format(file_path))
+        # pickle can't save generator and dataloader, so we skip those fields
+        dataloader_tmp = self.dataloader
+        self.generator, self.dataloader = None, None
+        with open(file_path, "wb") as f:
+            pickle.dump(self.__dict__, f)
+        self.dataloader = dataloader_tmp
+
+    def load(self, file_path):
+        """
+        Load the saved file and rebuilt BatchGenerator
+        """
+        logging.info("Loading BatchGenerator at {}".format(file_path))
+        with open(file_path, 'rb') as f:
+            vocab_data = pickle.load(f)
+            self.__dict__.update(vocab_data)
+        # we don't save value of generator and dataloader, so get they here
+        self.generator = None
+        self.dataloader = self._build_dataloader_pipeline()
+
     def init(self):
+        """
+        Initialize the dataloader generator
+        """
         self.generator = BatchGenerator._generator(self.dataloader)
 
     def next(self):
+        """
+        Get next batch data of dataloader
+        """
         if self.generator is None:
             raise Exception('you must do init before do next.')
         return next(self.generator)

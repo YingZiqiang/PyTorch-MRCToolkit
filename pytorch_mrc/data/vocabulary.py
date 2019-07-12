@@ -1,8 +1,9 @@
+import pickle
+import logging
+
+import numpy as np
 from tqdm import tqdm
 from collections import Counter
-import numpy as np
-import logging
-import json
 
 
 class Vocabulary(object):
@@ -11,8 +12,9 @@ class Vocabulary(object):
         self.char_vocab = None
         self.word2idx = None
         self.char2idx = None
+        self.word_embedding_matrix = None
         self.special_tokens = special_tokens
-        self.do_lowercase = do_lowercase
+        self.do_lowercase = do_lowercase  # only for word
 
         # Initial Tokens
         self.pad_token = "<PAD>"
@@ -22,8 +24,6 @@ class Vocabulary(object):
     def build_vocab(self, instances, min_word_count=-1, min_char_count=-1):
         self.word_vocab = [token for token in self.initial_tokens]
         self.char_vocab = [token for token in self.initial_tokens]
-        # Padding word should be at index 0 by default
-        # Convenient for upcoming padding operation
 
         self.word_counter = Counter()
         char_counter = Counter()
@@ -74,7 +74,8 @@ class Vocabulary(object):
         embedding_dict = dict()
         with open(embedding_file) as f:
             for line in f:
-                if len(line.rstrip().split(" ")) <= 2: continue
+                if len(line.rstrip().split(" ")) <= 2:
+                    continue
                 word, vector = line.rstrip().split(" ", 1)
                 embedding_dict[word] = np.fromstring(vector, dtype=np.float, sep=" ")
 
@@ -98,11 +99,7 @@ class Vocabulary(object):
             else:
                 embedding_list.append(np.reshape(embedding_dict[word], [1, embedding_size]))
 
-        # To be consistent with the behavior of tf.contrib.lookup.index_table_from_tensor,
-        # <UNK> token is appended at last
-        # embedding_list.append(np.random.uniform(-init_scale, init_scale, [1, embedding_size]))
-
-        return np.concatenate(embedding_list, axis=0)
+        self.word_embedding_matrix = np.concatenate(embedding_list, axis=0)
 
     def get_word_pad_idx(self):
         return self.word2idx[self.pad_token]
@@ -116,12 +113,6 @@ class Vocabulary(object):
     def get_char_unk_idx(self):
         return self.char2idx[self.unk_token]
 
-    def get_word_vocab(self):
-        return self.word_vocab
-
-    def get_char_vocab(self):
-        return self.char_vocab
-
     def get_word_idx(self, token):
         token = token.lower() if self.do_lowercase else token
         if token in self.word_vocab:
@@ -130,22 +121,32 @@ class Vocabulary(object):
             return self.get_word_unk_idx()
 
     def get_char_idx(self, token):
-        token = token.lower() if self.do_lowercase else token
         if token in self.char_vocab:
             return self.char2idx[token]
         else:
             return self.get_char_unk_idx()
 
-    def save(self, file_path):
-        logging.info("Saving vocabulary at {}".format(file_path))
-        with open(file_path, "w") as f:
-            json.dump(self.__dict__, f, indent=4)
+    def get_word_vocab(self):
+        return self.word_vocab
 
-    def load(self, file_path):
-        logging.info("Loading vocabulary at {}".format(file_path))
-        with open(file_path) as f:
-            vocab_data = json.load(f)
-            self.__dict__.update(vocab_data)
+    def get_char_vocab(self):
+        return self.char_vocab
 
     def get_word_counter(self):
         return self.word_counter
+
+    def get_word_embedding(self):
+        if self.word_embedding_matrix is None:
+            raise ValueError("get_word_embedding must bed called after make_word_embedding")
+        return self.word_embedding_matrix
+
+    def save(self, file_path):
+        logging.info("Saving vocabulary at {}".format(file_path))
+        with open(file_path, "wb") as f:
+            pickle.dump(self.__dict__, f)
+
+    def load(self, file_path):
+        logging.info("Loading vocabulary at {}".format(file_path))
+        with open(file_path, 'rb') as f:
+            vocab_data = pickle.load(f)
+            self.__dict__.update(vocab_data)
