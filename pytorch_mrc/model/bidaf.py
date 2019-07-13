@@ -3,10 +3,10 @@ import torch.nn as nn
 from torch.nn import CrossEntropyLoss
 
 from pytorch_mrc.model.base_model import BaseModel
-from pytorch_mrc.nn.layers import Embedding, Conv1DAndMaxPooling, Highway
+from pytorch_mrc.nn.layers import Embedding, Conv1DAndMaxPooling, Highway, VariationalDropout
 from pytorch_mrc.nn.recurrent import BiLSTM
 from pytorch_mrc.nn.attention import BiAttention
-from pytorch_mrc.nn.similarity_function import TriLinear
+from pytorch_mrc.nn.similarity_function import TriLinearSimilarity
 from pytorch_mrc.nn.util import sequence_mask, masked_softmax, mask_logits, weighted_sum
 
 
@@ -49,7 +49,7 @@ class BiDAF(BaseModel):
         self.encode_phrase_lstm = BiLSTM(embedding_dim, rnn_hidden_size)
 
         # Attention Flow Layer
-        self.bi_attention = BiAttention(TriLinear(input_dim=2 * rnn_hidden_size))
+        self.bi_attention = BiAttention(TriLinearSimilarity(input_dim=2 * rnn_hidden_size))
 
         # Modeling Layer
         self.modeling_lstm1 = BiLSTM(8 * rnn_hidden_size, rnn_hidden_size)
@@ -60,7 +60,7 @@ class BiDAF(BaseModel):
         self.end_lstm = BiLSTM(14 * rnn_hidden_size, rnn_hidden_size)
         self.end_pred_layer = nn.Linear(10 * rnn_hidden_size, 1, bias=False)
 
-        self.dropout = nn.Dropout(p=dropout_prob)
+        self.dropout = VariationalDropout(p=dropout_prob)
 
     def forward(self, data):
         # Parsing data
@@ -81,8 +81,8 @@ class BiDAF(BaseModel):
         question_char_repr = self.char_embedding(question_char_ids)
 
         # 1.2 Char convolution
-        context_char_repr = self.dropout(self.conv1d(context_char_repr, context_word_len))
-        question_char_repr = self.dropout(self.conv1d(question_char_repr, question_word_len))
+        context_char_repr = self.dropout(self.conv1d(context_char_repr))
+        question_char_repr = self.dropout(self.conv1d(question_char_repr))
 
         # 1.3 Concat word and char
         context_repr = torch.cat([context_word_repr, context_char_repr], dim=-1)

@@ -87,6 +87,9 @@ class BatchGenerator(object):
     def get_raw_dataset(self):
         return self.instances
 
+    def get_vocab(self):
+        return self.vocab
+
     @staticmethod
     def _generator(dataloader):
         for batch_data in dataloader:

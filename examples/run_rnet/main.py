@@ -19,12 +19,12 @@ train_data = reader.read(train_file)
 eval_data = reader.read(dev_file)
 evaluator = SquadEvaluator(dev_file)
 
-vocab = Vocabulary(do_lowercase=False)
+vocab = Vocabulary()
 vocab.build_vocab(train_data + eval_data, min_word_count=3, min_char_count=10)
 word_embedding = vocab.make_word_embedding(embedding_file)
 
-train_batch_generator = BatchGenerator(vocab, train_data, batch_size=50, training=True)
-eval_batch_generator = BatchGenerator(vocab, eval_data, batch_size=50)
+train_batch_generator = BatchGenerator(vocab, train_data, batch_size=32, training=True)
+eval_batch_generator = BatchGenerator(vocab, eval_data, batch_size=32)
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 model = RNET(vocab, device, pretrained_word_embedding=word_embedding)

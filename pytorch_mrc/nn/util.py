@@ -32,8 +32,8 @@ def weighted_sum(matrix, attention, dim=1):
 
     Note: In fact, it also supports higher-order tensors, but it needs to keep the dimensions exactly the same.
     """
-    if matrix.dim() == 2:
-        matrix = matrix.unsqueeze(2)
+    if attention.dim() == 2:
+        attention = attention.unsqueeze(2)
     return (matrix * attention).sum(dim)
 
 

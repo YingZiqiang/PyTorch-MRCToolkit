@@ -10,18 +10,45 @@
 
 ## Modules
 1. `data`
+    - vocabulary.py: Vocabulary building, word/char index mapping and pretrained word embedding building.
+    - batch_generator.py: Mapping words and tags to indices and building them by [*PyTorch Dataset*](https://pytorch.org/docs/stable/data.html?highlight=dataset#torch.utils.data.Dataset), padding length-variable features dynamically, transforming all of the features into tensors, and batching them by [*PyTorch DataLoader*](https://pytorch.org/docs/stable/data.html?highlight=dataloader#torch.utils.data.DataLoader).
 2. `dataset`
+    - squad.py: Dataset reader and evaluator (from official code) for SQuAD 1.1
 3. `examples`
+    - Examples for running different models, where the specified data path should provided to run the examples
 4. `model`
+    - Base class and subclasses of models, where any model should inherit the base class
+    - Built-in models such as BiDAF, R-Net and QANet
 5. `nn`
+    - attention.py: Attention functions such as BiAttention, Trilinear and MultiHeadAttention
+    - layers: commonly used layers in PyTorch Machine Reading Comprehension, such as VariationalDropout, Highway and PointerNetwork
+    - recurrent: Special wrappers for LSTM and GRU
+    - similarity\_function.py: Similarity functions for attention, such as dot_product, trilinear, and symmetric_nolinear
+    - util: some useful utility functions such as sequence_mask, weighted_sum and masked_softmax
 6. `utils`
+    - tokenizer.py: Tokenizers that can be used for both English and Chinese
+    - feature_extractor: Extracting linguistic features used in some papers, e.g., POS, NER, and Lemma
 7. `libraries`
+    - Bert is included in this toolkit
 
 ## Custom Model and Dataset
 
 ## Performance
 
 ### F1/EM score on SQuAD 1.1 dev set
+| Model | toolkit implementation | original paper|
+| --- | --- | ---|
+|BiDAF | 77.6/67.9  | 77.3/67.7 |
+|BiDAF+ELMo | - | - |
+|IARNN-Word | - | - |
+|IARNN-hidden | - | - |
+|DrQA | - | 78.8/69.5  |
+|DrQA+ELMO|- | - |
+|R-Net | - | 79.5/71.1  |
+|BiDAF++ | - | -/-  |
+|FusionNet | - | 82.5/74.1  |
+|QANet | - | 82.7/73.6  |
+|BERT-Base | - | 88.5/80.8 |
 
 ### F1/EM score on SQuAD 2.0 dev set
 
