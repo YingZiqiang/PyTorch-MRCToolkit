@@ -45,7 +45,6 @@ class BiDAF(BaseModel):
             # embedding_dim += ??
         self.highway = Highway(input_dim=embedding_dim, num_layers=2)
 
-        # TODO Encode Layer, maybe context and question need to encode separately
         self.encode_phrase_lstm = BiLSTM(embedding_dim, rnn_hidden_size)
 
         # Attention Flow Layer
@@ -113,19 +112,22 @@ class BiDAF(BaseModel):
         # 5. Start prediction
         start_logits = self.start_pred_layer(self.dropout(torch.cat([final_merged_context, modeled_context], dim=-1)))
         start_logits = start_logits.squeeze(-1)
-        self.start_prob = masked_softmax(start_logits, context_mask)
+        start_prob = masked_softmax(start_logits, context_mask)
 
         # 6. End prediction
-        start_repr = weighted_sum(modeled_context, self.start_prob)
+        start_repr = weighted_sum(modeled_context, start_prob)
         tiled_start_repr = start_repr.unsqueeze(1).repeat(1, modeled_context.size(1), 1)
-        encoded_end_repr, _ = self.end_lstm(self.dropout(torch.cat(
-            [final_merged_context, modeled_context, tiled_start_repr, modeled_context * tiled_start_repr], dim=-1)),
-            context_len)
+        end_repr = torch.cat([final_merged_context,
+                              modeled_context,
+                              tiled_start_repr,
+                              modeled_context * tiled_start_repr],
+                             dim=-1)
+        encoded_end_repr, _ = self.end_lstm(self.dropout(end_repr), context_len)
         end_logits = self.end_pred_layer(self.dropout(torch.cat([final_merged_context, encoded_end_repr], dim=-1)))
         end_logits = end_logits.squeeze(-1)
-        self.end_prob = masked_softmax(end_logits, context_mask)
+        end_prob = masked_softmax(end_logits, context_mask)
 
-        # 7. Retured Things. If train return loss, if eval/inference return a dict
+        # 7. Retured Things.
         # TODO for squad2.0 and for multi GPUs
         if answer_start is not None and answer_end is not None:
             # sometimes the start/end positions are outside our model inputs, we ignore these terms
@@ -133,23 +135,27 @@ class BiDAF(BaseModel):
             answer_start.clamp_(0, ignored_index)
             answer_end.clamp_(0, ignored_index)
 
+            # compute loss
             loss_fct = CrossEntropyLoss(ignore_index=ignored_index)
             start_loss = loss_fct(mask_logits(start_logits, context_mask), answer_start)
             end_loss = loss_fct(mask_logits(end_logits, context_mask), answer_end)
             total_loss = (start_loss + end_loss) / 2
 
             if self.training:
+                # if train, we return loss only
                 return total_loss
             else:
+                # if eval, we return a tuple (loss, output_dict)
                 output_dict = {
-                    "start_prob": self.start_prob.cpu().numpy(),
-                    "end_prob": self.end_prob.cpu().numpy()
+                    "start_prob": start_prob.cpu().numpy(),
+                    "end_prob": end_prob.cpu().numpy()
                 }
                 return total_loss, output_dict
         else:
+            # if inference, we return output_dict only
             output_dict = {
-                "start_prob": self.start_prob.cpu().numpy(),
-                "end_prob": self.end_prob.cpu().numpy()
+                "start_prob": start_prob.cpu().numpy(),
+                "end_prob": end_prob.cpu().numpy()
             }
             return output_dict
 

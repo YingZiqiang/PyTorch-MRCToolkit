@@ -137,7 +137,7 @@ class Vocabulary(object):
 
     def get_word_embedding(self):
         if self.word_embedding_matrix is None:
-            raise ValueError("get_word_embedding must bed called after make_word_embedding")
+            raise ValueError("get_word_embedding must be called after make_word_embedding")
         return self.word_embedding_matrix
 
     def save(self, file_path):

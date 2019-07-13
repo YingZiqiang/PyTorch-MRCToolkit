@@ -11,10 +11,10 @@ data_folder = '/home/len/yingzq/nlp/mrc_dataset/squad-v1.1/'
 embedding_folder = '/home/len/yingzq/nlp/mrc_dataset/word_embeddings/'
 train_file = data_folder + "train-v1.1.json"
 dev_file = data_folder + "dev-v1.1.json"
-embedding_file = embedding_folder + 'glove.6B.100d.txt'
-vocab_file = data_folder + 'vocab_data/' + 'vocab_100d.pkl'
-bg_train_file = data_folder + 'batch_generator_data/' + 'bg_train_50b_100d.pkl'
-bg_eval_file = data_folder + 'batch_generator_data/' + 'bg_eval_50b_100d.pkl'
+embedding_file = embedding_folder + 'glove.840B.300d.txt'
+vocab_file = data_folder + 'vocab_data/' + 'vocab_300d.pkl'
+bg_train_file = data_folder + 'batch_generator_data/' + 'bg_train_50b_300d.pkl'
+bg_eval_file = data_folder + 'batch_generator_data/' + 'bg_eval_50b_300d.pkl'
 
 reader = SquadReader()
 train_data = reader.read(train_file)

@@ -20,7 +20,7 @@ train_batch_generator = BatchGenerator()
 eval_batch_generator = BatchGenerator()
 train_batch_generator.load(train_bg_file)
 eval_batch_generator.load(eval_bg_file)
-vocab = train_batch_generator.vocab
+vocab = train_batch_generator.get_vocab()
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 model = BiDAF(vocab, device, pretrained_word_embedding=vocab.get_word_embedding())

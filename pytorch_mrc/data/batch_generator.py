@@ -181,7 +181,7 @@ class BatchGenerator(object):
                 instance['context_word_len'] = [len(word) for word in context_tokens]
                 instance['question_word_len'] = [len(word) for word in question_tokens]
 
-            # if do_lowercasing, we do it in get_word_idx function
+            # if do_lowercasing, we will do it in get_word_idx function
             instance['context_ids'] = [self.vocab.get_word_idx(token) for token in context_tokens]
             instance['question_ids'] = [self.vocab.get_word_idx(token) for token in question_tokens]
             instance['context_len'] = len(context_tokens)
