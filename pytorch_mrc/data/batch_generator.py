@@ -227,15 +227,16 @@ class BatchGenerator(object):
             # 2. Handle the char level data
             if self.use_char:
                 # 2.1 Padding sample `char ids` and `word len` to batch max length
+                # TODO padding with 1 length is ok ?
                 for sample in batch:
                     sample['context_char_ids'] = BatchGenerator._dynamic_padding(
                         sample['context_char_ids'], pad_context_len, [char_pad_idx])
                     sample['question_char_ids'] = BatchGenerator._dynamic_padding(
                         sample['question_char_ids'], pad_question_len, [char_pad_idx])
                     sample['context_word_len'] = BatchGenerator._dynamic_padding(
-                        sample['context_word_len'], pad_context_len, 0)
+                        sample['context_word_len'], pad_context_len, 1)
                     sample['question_word_len'] = BatchGenerator._dynamic_padding(
-                        sample['question_word_len'], pad_question_len, 0)
+                        sample['question_word_len'], pad_question_len, 1)
 
                 # 2.2 Get batch pad word length
                 pad_context_word_len = min(self.max_word_len, max([max(sample['context_word_len']) for sample in batch]))

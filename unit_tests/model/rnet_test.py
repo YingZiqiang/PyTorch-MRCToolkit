@@ -4,7 +4,7 @@ import logging
 import torch
 from pytorch_mrc.data.vocabulary import Vocabulary
 from pytorch_mrc.dataset.squad import SquadReader, SquadEvaluator
-from pytorch_mrc.model.rnet1 import RNET
+from pytorch_mrc.model.rnet2 import RNET
 from pytorch_mrc.data.batch_generator import BatchGenerator
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -18,15 +18,18 @@ tiny_data = reader.read(tiny_file)
 evaluator = SquadEvaluator(tiny_file)
 
 logging.info('building vocab and making embedding...')
-vocab = Vocabulary(do_lowercase=False)
+vocab = Vocabulary()
 vocab.build_vocab(tiny_data, min_word_count=3, min_char_count=10)
-word_embedding = vocab.make_word_embedding(embedding_file)
+vocab.make_word_embedding(embedding_file)
+word_embedding = vocab.get_word_embedding()
 logging.info('word vocab size: {}, word embedding shape: {}'.format(len(vocab.get_word_vocab()), word_embedding.shape))
 
-train_batch_generator = BatchGenerator(vocab, tiny_data, batch_size=30, training=True)
-eval_batch_generator = BatchGenerator(vocab, tiny_data, batch_size=30)
+train_batch_generator = BatchGenerator()
+train_batch_generator.build(vocab, tiny_data, batch_size=30, training=True)
+eval_batch_generator = BatchGenerator()
+eval_batch_generator.build(vocab, tiny_data, batch_size=30)
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 model = RNET(vocab, device, pretrained_word_embedding=word_embedding, word_embedding_size=100)
 model.compile()
-model.train_and_evaluate(train_batch_generator, eval_batch_generator, evaluator, epochs=15, episodes=2, log_every_n_batch=10)
+model.train_and_evaluate(train_batch_generator, eval_batch_generator, evaluator, epochs=2, episodes=2, log_every_n_batch=10)

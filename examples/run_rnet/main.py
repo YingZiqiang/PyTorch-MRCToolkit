@@ -3,7 +3,7 @@ sys.path.append('../..')
 import logging
 import torch
 from pytorch_mrc.dataset.squad import SquadReader, SquadEvaluator
-from pytorch_mrc.model.rnet1 import RNET
+from pytorch_mrc.model.rnet2 import RNET
 from pytorch_mrc.data.batch_generator import BatchGenerator
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -23,6 +23,6 @@ eval_batch_generator.load(eval_bg_file)
 vocab = train_batch_generator.get_vocab()
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-model = RNET(vocab, device, pretrained_word_embedding=vocab.get_word_embedding())
+model = RNET(vocab, device, pretrained_word_embedding=vocab.get_word_embedding(), word_embedding_size=300)
 model.compile()
 model.train_and_evaluate(train_batch_generator, eval_batch_generator, evaluator, epochs=30, episodes=2)

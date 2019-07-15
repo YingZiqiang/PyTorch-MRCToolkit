@@ -8,27 +8,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
+from .attention import DotAttention
+from .recurrent import BiGRU
+from .dropout import VariationalDropout
 from .util import sequence_mask, masked_softmax
 
 VERY_NEGATIVE_NUMBER = -1e29
-
-
-class VariationalDropout(nn.Module):
-    """Variational Dropout presented in https://arxiv.org/pdf/1512.05287.pdf"""
-
-    def __init__(self, p, batch_first=True):
-        super().__init__()
-        self.batch_first = batch_first
-        self.dropout = nn.Dropout(p)
-
-    def forward(self, x):
-        if not self.training:
-            return x
-        if self.batch_first:
-            mask = x.new_ones(x.size(0), 1, x.size(2), requires_grad=False)
-        else:
-            mask = x.new_ones(1, x.size(1), x.size(2), requires_grad=False)
-        return self.dropout(mask) * x
 
 
 class Embedding(nn.Module):
@@ -132,12 +117,46 @@ class Conv1DAndMaxPooling(nn.Module):
         return input.max(dim=rank).values
 
 
+class Gate(nn.Module):
+    def __init__(self, input_dim, drop_prob=0.0):
+        super().__init__()
+        self.gate = nn.Sequential(
+            VariationalDropout(drop_prob),
+            nn.Linear(input_dim, input_dim, bias=False),
+            nn.Sigmoid()
+        )
+
+    def forward(self, inputs):
+        return inputs * self.gate(inputs)
+
+
+class StaticPairEncoder(nn.Module):
+    def __init__(self, input_dim, memory_dim, hidden_dim, drop_prob=0.0, batch_first=True):
+        super(StaticPairEncoder, self).__init__()
+        self.attention = DotAttention(input_dim, memory_dim, hidden_dim,
+                                      drop_prob=drop_prob, batch_first=batch_first)
+        self.gate = nn.Sequential(
+            Gate(input_dim + memory_dim, drop_prob=drop_prob),
+            VariationalDropout(drop_prob, batch_first=batch_first)
+        )
+        self.encoder = BiGRU(input_dim + memory_dim, hidden_dim, batch_first=batch_first)
+
+    def forward(self, inputs, memory, inputs_len, memory_mask):
+        new_inputs = self.gate(self.attention(inputs, memory, memory_mask))
+        outputs, _ = self.encoder(new_inputs, inputs_len)
+        return outputs
+
+
+class StaticSelfMatchEncoder(StaticPairEncoder):
+    pass
+
+
 class PointerNetwork(nn.Module):
     """
     Implements the Pointer Network.
     """
 
-    def __init__(self, context_dim, question_dim, hidden_dim=75,
+    def __init__(self, context_dim, question_dim, hidden_dim,
                  cell_type='gru', drop_prob=0.0, batch_first=True):
         super(PointerNetwork, self).__init__()
         self.batch_first = batch_first
@@ -166,7 +185,7 @@ class PointerNetwork(nn.Module):
             nn.Linear(hidden_dim, 1, bias=False),
         )
 
-        self.random_attn_vector = nn.Parameter(torch.randn(1, 1, question_dim), requires_grad=True)
+        self.random_attn_vector = nn.Parameter(torch.randn(1, 1, question_dim))
 
     def forward(self, context_repr, question_repr, context_mask, question_mask):
         """

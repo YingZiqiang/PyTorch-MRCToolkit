@@ -11,7 +11,7 @@ import torch
 import torch.nn as nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
-from .layers import VariationalDropout
+from .dropout import VariationalDropout
 
 
 class BaseRNN(nn.Module):
@@ -34,7 +34,7 @@ class BaseRNN(nn.Module):
         self.rnn = rnn_cls(input_size, hidden_size, batch_first=True, num_layers=num_layers,
                            bidirectional=bidirectional, dropout=(0 if num_layers == 1 else drop_prob))
 
-    def forward(self, inputs, lengths, initial_state=None):
+    def forward(self, inputs, lengths=None, initial_state=None):
         """
         Args:
             inputs(Tensor): tensor containing the features of the input sequence.
@@ -55,25 +55,24 @@ class BaseRNN(nn.Module):
         if not self.batch_first:
             inputs.transpose_(0, 1)
 
-        orig_len = inputs.size(1)
-
-        # Pack
-        lengths, sort_idx = lengths.sort(dim=0, descending=True)
-        inputs = inputs[sort_idx]
-        inputs = pack_padded_sequence(inputs, lengths, batch_first=True)
-
-        # Apply RNNs
-        outputs, last_state = self.rnn(inputs, initial_state)
-
-        # Unpack
-        outputs, _ = pad_packed_sequence(outputs, batch_first=True, total_length=orig_len)
-        _, unsort_idx = sort_idx.sort(dim=0)
-        outputs = outputs[unsort_idx]
-
-        if self.rnn_type == 'lstm':
-            last_state = (last_state[0][:, unsort_idx, :], last_state[1][:, unsort_idx, :])
+        if lengths is None:
+            outputs, last_state = self.rnn(inputs, initial_state)
         else:
-            last_state = last_state[:, unsort_idx, :]
+            orig_len = inputs.size(1)
+            # Sort and Pack
+            lengths, sort_idx = lengths.sort(dim=0, descending=True)
+            inputs = inputs[sort_idx]
+            inputs = pack_padded_sequence(inputs, lengths, batch_first=True)
+            # Apply RNNs
+            outputs, last_state = self.rnn(inputs, initial_state)
+            # Unpack and Unsort
+            outputs, _ = pad_packed_sequence(outputs, batch_first=True, total_length=orig_len)
+            _, unsort_idx = sort_idx.sort(dim=0)
+            outputs = outputs[unsort_idx]
+            if self.rnn_type == 'lstm':
+                last_state = (last_state[0][:, unsort_idx, :], last_state[1][:, unsort_idx, :])
+            else:
+                last_state = last_state[:, unsort_idx, :]
 
         # Restored outputs shape
         if not self.batch_first:
@@ -85,37 +84,37 @@ class BaseRNN(nn.Module):
 class LSTM(BaseRNN):
     """Unidirectional LSTM"""
 
-    def __init__(self, input_size, hidden_size, num_layers=1, drop_prob=0.0):
+    def __init__(self, input_size, hidden_size, num_layers=1, drop_prob=0.0, batch_first=True):
         super(LSTM, self).__init__('LSTM', input_size, hidden_size,
                                    num_layers=num_layers, drop_prob=drop_prob,
-                                   batch_first=True, bidirectional=False)
+                                   batch_first=batch_first, bidirectional=False)
 
 
 class GRU(BaseRNN):
     """Unidirectional GRU"""
 
-    def __init__(self, input_size, hidden_size, num_layers=1, drop_prob=0.0):
+    def __init__(self, input_size, hidden_size, num_layers=1, drop_prob=0.0, batch_first=True):
         super(GRU, self).__init__('GRU', input_size, hidden_size,
                                   num_layers=num_layers, drop_prob=drop_prob,
-                                  batch_first=True, bidirectional=False)
+                                  batch_first=batch_first, bidirectional=False)
 
 
 class BiLSTM(BaseRNN):
     """Bidirectional LSTM"""
 
-    def __init__(self, input_size, hidden_size, num_layers=1, drop_prob=0.0):
+    def __init__(self, input_size, hidden_size, num_layers=1, drop_prob=0.0, batch_first=True):
         super(BiLSTM, self).__init__('LSTM', input_size, hidden_size,
                                      num_layers=num_layers, drop_prob=drop_prob,
-                                     batch_first=True, bidirectional=True)
+                                     batch_first=batch_first, bidirectional=True)
 
 
 class BiGRU(BaseRNN):
     """Bidirectional GRU"""
 
-    def __init__(self, input_size, hidden_size, num_layers=1, drop_prob=0.0):
+    def __init__(self, input_size, hidden_size, num_layers=1, drop_prob=0.0, batch_first=True):
         super(BiGRU, self).__init__('GRU', input_size, hidden_size,
                                     num_layers=num_layers, drop_prob=drop_prob,
-                                    batch_first=True, bidirectional=True)
+                                    batch_first=batch_first, bidirectional=True)
 
 
 class BaseMultiLayerRNN(nn.Module):
@@ -127,9 +126,6 @@ class BaseMultiLayerRNN(nn.Module):
         self.rnn_type = rnn_type.lower()
         self.batch_first = batch_first
 
-        # if num_layers < 2:
-        #     raise ValueError('num_layers must be a number greater than 1')
-
         self.rnn_list = nn.ModuleList(
             [BaseRNN(self.rnn_type, input_size, hidden_size, batch_first=True, bidirectional=bidirectional)])
 
@@ -140,7 +136,7 @@ class BaseMultiLayerRNN(nn.Module):
 
         self.dropout = VariationalDropout(p=input_drop_prob, batch_first=True)
 
-    def forward(self, inputs, lengths, initial_state=None, concat_layers=True):
+    def forward(self, inputs, lengths=None, initial_state=None, concat_layers=True):
         """
         Args:
             concat_layers(bool): whether concat all layers outputs when `num_layers > 1`
@@ -174,7 +170,7 @@ class BaseMultiLayerRNN(nn.Module):
             cn_state = torch.cat([layer_state[1] for layer_state in last_state_list], dim=0)
             last_state = (hn_state, cn_state)
         else:
-            last_state = torch.cat([layer_hn for layer_hn in last_state_list], dim=0)
+            last_state = torch.cat(last_state_list, dim=0)
 
         # Restored outputs shape
         if not self.batch_first:
@@ -184,18 +180,18 @@ class BaseMultiLayerRNN(nn.Module):
 
 
 class MultiLayerBiGRU(BaseMultiLayerRNN):
-    def __init__(self, input_size, hidden_size, num_layers, input_drop_prob=0.0):
+    def __init__(self, input_size, hidden_size, num_layers, input_drop_prob=0.0, batch_first=True):
         super(MultiLayerBiGRU, self).__init__('GRU', input_size, hidden_size,
                                               num_layers=num_layers,
                                               input_drop_prob=input_drop_prob,
-                                              batch_first=True,
+                                              batch_first=batch_first,
                                               bidirectional=True)
 
 
 class MultiLayerBiLSTM(BaseMultiLayerRNN):
-    def __init__(self, input_size, hidden_size, num_layers, input_drop_prob=0.0):
+    def __init__(self, input_size, hidden_size, num_layers, input_drop_prob=0.0, batch_first=True):
         super(MultiLayerBiLSTM, self).__init__('LSTM', input_size, hidden_size,
                                                num_layers=num_layers,
                                                input_drop_prob=input_drop_prob,
-                                               batch_first=True,
+                                               batch_first=batch_first,
                                                bidirectional=True)

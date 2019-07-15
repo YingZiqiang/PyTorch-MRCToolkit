@@ -3,7 +3,7 @@ sys.path.append('../..')
 import logging
 import torch
 from pytorch_mrc.dataset.squad import SquadReader, SquadEvaluator
-from pytorch_mrc.model.bidaf import BiDAF
+from pytorch_mrc.model.bidaf2 import BiDAF
 from pytorch_mrc.data.batch_generator import BatchGenerator
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
