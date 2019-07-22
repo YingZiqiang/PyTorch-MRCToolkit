@@ -140,10 +140,16 @@ class Vocabulary(object):
             raise ValueError("get_word_embedding must be called after make_word_embedding")
         return self.word_embedding_matrix
 
-    def save(self, file_path):
+    def save(self, file_path, include_word_embedding=True):
         logging.info("Saving vocabulary at {}".format(file_path))
+        # if include_word_embedding is False, we will not save the word embedding matrix
+        if not include_word_embedding:
+            tmp_word_emb = self.word_embedding_matrix
+            self.word_embedding_matrix = None
         with open(file_path, "wb") as f:
             pickle.dump(self.__dict__, f)
+        if not include_word_embedding:
+            self.word_embedding_matrix = tmp_word_emb
 
     def load(self, file_path):
         logging.info("Loading vocabulary at {}".format(file_path))

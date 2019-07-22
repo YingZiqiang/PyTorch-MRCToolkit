@@ -17,13 +17,10 @@ def print_info(vocab, word_embedding):
         vocab.get_word_idx('randomrandom'), word_embedding[vocab.get_word_idx('randomrandom')]))
 
 
-# define data folder/file
-data_folder = '/home/len/yingzq/nlp/mrc_dataset/squad-v1.1/'
-embedding_folder = '/home/len/yingzq/nlp/mrc_dataset/word_embeddings/'
-vocab_save_folder = data_folder + 'vocab_data/'
-tiny_file = data_folder + "smaller_tiny-v1.1.json"
-embedding_file = embedding_folder + 'glove.6B.100d.txt'
-save_file = vocab_save_folder + 'vocab_tiny_100d.pkl'
+# define data path
+tiny_file = "/home/len/yingzq/nlp/mrc_dataset/squad-v1.1/tiny-v1.1.json"
+embedding_file = '/home/len/yingzq/nlp/mrc_dataset/word_embeddings/glove.6B.100d.txt'
+vocab_save_file = '/home/len/yingzq/nlp/mrc_dataset/squad-v1.1/vocab_data/vocab_tiny_100d.pkl'  # where to save vocab data
 
 # read data
 reader = SquadReader()
@@ -39,17 +36,15 @@ vocab.make_word_embedding(embedding_file)
 word_embedding = vocab.get_word_embedding()
 print_info(vocab, word_embedding)
 
-# saving vocabulary
+# save vocabulary
 print('***saveing vocabulary...***')
-vocab.save(save_file)
+vocab.save(vocab_save_file)
 print('successful!')
 
-# loading vocabulary
+# load vocabulary
 print('***loading vocabulary...***')
-del vocab
-del word_embedding
 vocab = Vocabulary()
-vocab.load(save_file)
+vocab.load(vocab_save_file)
 word_embedding = vocab.get_word_embedding()
 print_info(vocab, word_embedding)
 
