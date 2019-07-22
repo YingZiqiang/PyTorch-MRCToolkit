@@ -148,8 +148,8 @@ class RNET(BaseModel):
     #     torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=grad_clip)
     #     self.optimizer.step()
 
-    def compile(self, optimizer=torch.optim.Adadelta, initial_lr=0.5):
-        self.optimizer = optimizer(self.parameters(), lr=initial_lr, rho=0.9)
+    def compile(self, optimizer=torch.optim.Adam, initial_lr=0.001):
+        self.optimizer = optimizer(self.parameters(), lr=initial_lr)
 
     def get_best_answer(self, output, instances, max_len=15):
         answer_list = []

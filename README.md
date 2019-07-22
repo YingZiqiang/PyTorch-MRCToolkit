@@ -2,6 +2,9 @@
 ## Introduction
 **The PyTorch Machine Reading Comprehension (PyTorch-MRC)** toolkit, which was rewritten on the basis of Sogou Machine Reading Comprehension (SMRC), was designed for the fast and efficient development of modern machine comprehension models, including both published models and original prototypes.
 
+## Need Teammates!
+The whole project is written and maintained by me alone, so I hope that some friends who like NLP and are interested in MRC will work with me to maintain it. Please contact me by email at yingzq0116@163.com.
+
 ## Toolkit Architecture
 
 ## Installation
