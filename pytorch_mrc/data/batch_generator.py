@@ -60,7 +60,7 @@ class BatchGenerator(object):
         with open(file_path, 'rb') as f:
             vocab_data = pickle.load(f)
             self.__dict__.update(vocab_data)
-        # we don't save value of generator and dataloader, so get they here
+        # we don't save value of generator and dataloader, so build they here
         self.generator = None
         self.dataloader = self._build_dataloader_pipeline()
 
@@ -157,14 +157,7 @@ class BatchGenerator(object):
         input_fields, input_type_dict = BatchGenerator._detect_input_type(self.instances[0], self.additional_fields)
         filtered_instances = [{k: instance[k] for k in input_fields} for instance in self.instances]
 
-        # 3.3 other feature look-up table
-        # if len(self.feature_vocab) > 0:
-        #     feature_table = {}
-        #     for feature_name, vocab in self.feature_vocab.items():
-        #         feature_table[feature_name] = tf.contrib.lookup.index_table_from_tensor(tf.constant(vocab),
-        #                                                                                 num_oov_buckets=1)
-
-        # 4. Some preprocessing, including char extraction, lowercasing, length
+        # 2. Some preprocessing, including char extraction, lowercasing, length
         def transform_new_instance(instance):
             context_tokens = instance['context_tokens']
             question_tokens = instance['question_tokens']
@@ -186,13 +179,8 @@ class BatchGenerator(object):
             instance['question_ids'] = [self.vocab.get_word_idx(token) for token in question_tokens]
             instance['context_len'] = len(context_tokens)
             instance['question_len'] = len(question_tokens)
-            # if len(self.feature_vocab) > 0:
-            #     for field in self.additional_fields:
-            #         for feature_name, table in feature_table.items():
-            #             if field.endswith(feature_name):
-            #                 instance[field] = tf.cast(table.lookup(instance[field]), tf.int32)
-            #                 break
 
+            # filter the str data, because we don't need them when training.
             for field, field_type in input_type_dict.items():
                 if field_type == str:
                     del instance[field]

@@ -20,12 +20,10 @@ def print_info(batch_generator):
     print('*' * 10)
 
 
-# define data folder/file
-data_folder = '/home/len/yingzq/nlp/mrc_dataset/squad-v1.1/'
-save_folder = data_folder + 'batch_generator_data/'
-tiny_file = data_folder + "smaller_tiny-v1.1.json"
-vocab_file = data_folder + 'vocab_data/' + 'vocab_tiny_100d.pkl'
-save_file = save_folder + 'bg_tiny_32b_100d.pkl'
+# define data path
+tiny_file = "/home/len/yingzq/nlp/mrc_dataset/squad-v1.1/tiny-v1.1.json"
+vocab_file = '/home/len/yingzq/nlp/mrc_dataset/squad-v1.1/vocab_data/vocab_tiny_100d.pkl'
+bg_save_file = '/home/len/yingzq/nlp/mrc_dataset/squad-v1.1/bg_data/bg_tiny_32b_100d.pkl'
 
 # read data
 reader = SquadReader()
@@ -47,14 +45,13 @@ print_info(batch_generator)
 
 # save batch generator
 print('***saving BatchGenerator...***')
-batch_generator.save(save_file)
+batch_generator.save(bg_save_file)
 print('successful!')
 
 # load batch generator
 print('***loading BatchGenerator***')
-del batch_generator
 batch_generator = BatchGenerator()
-batch_generator.load(save_file)
+batch_generator.load(bg_save_file)
 print_info(batch_generator)
 
 print('done!')
