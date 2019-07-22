@@ -7,7 +7,7 @@ from pytorch_mrc.model.bidaf2 import BiDAF
 from pytorch_mrc.data.batch_generator import BatchGenerator
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-bg_folder = '/home/len/yingzq/nlp/mrc_dataset/squad-v1.1/batch_generator_data/'
+bg_folder = '/home/len/yingzq/nlp/mrc_dataset/squad-v1.1/bg_data/'
 train_bg_file = bg_folder + "bg_train_50b_100d.pkl"
 eval_bg_file = bg_folder + "bg_eval_50b_100d.pkl"
 dev_file = "/home/len/yingzq/nlp/mrc_dataset/squad-v1.1/dev-v1.1.json"
