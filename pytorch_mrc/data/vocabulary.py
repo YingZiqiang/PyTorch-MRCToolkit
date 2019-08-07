@@ -19,7 +19,7 @@ class Vocabulary(object):
         # Initial Tokens
         self.pad_token = "<PAD>"
         self.unk_token = "<UNK>"
-        self.initial_tokens = [self.pad_token, self.unk_token]
+        self.initial_tokens = (self.pad_token, self.unk_token)
 
     def build_vocab(self, instances, min_word_count=-1, min_char_count=-1):
         self.word_vocab = [token for token in self.initial_tokens]

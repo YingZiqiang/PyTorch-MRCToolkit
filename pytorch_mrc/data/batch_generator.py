@@ -12,7 +12,7 @@ class BatchGenerator(object):
 
     def build(self, vocab, instances,
               batch_size=32,
-              training=False,
+              shuffle=False,
               max_context_len=500,
               max_question_len=30,
               use_char=True,
@@ -26,7 +26,7 @@ class BatchGenerator(object):
         self.vocab = vocab
         self.instances = instances
         self.batch_size = batch_size
-        self.training = training
+        self.shuffle = shuffle
         self.max_context_len = max_context_len
         self.max_question_len = max_question_len
         self.use_char = use_char
@@ -60,7 +60,7 @@ class BatchGenerator(object):
         with open(file_path, 'rb') as f:
             vocab_data = pickle.load(f)
             self.__dict__.update(vocab_data)
-        # we don't save value of generator and dataloader, so build they here
+        # we don't save the value of generator and dataloader, so we build they here
         self.generator = None
         self.dataloader = self._build_dataloader_pipeline()
 
@@ -85,6 +85,9 @@ class BatchGenerator(object):
         return self.batch_size
 
     def get_raw_dataset(self):
+        """
+        When evaluating and predicting, you may need the raw dataset to generate answers
+        """
         return self.instances
 
     def get_vocab(self):
@@ -126,7 +129,7 @@ class BatchGenerator(object):
             else:
                 return None
 
-        input_type = {}
+        input_type = {'answer_start': None, 'answer_end': None}
 
         for field in fields:
             if instance[field] is None:
@@ -150,12 +153,12 @@ class BatchGenerator(object):
                 else:
                     logging.warning('Data type of field "%s" not detected! Skip this field.', field)
 
-        return fields, input_type
+        return input_type
 
     def _build_dataset_pipeline(self):
         # 1. Check the input-data type and filter invalid keys
-        input_fields, input_type_dict = BatchGenerator._detect_input_type(self.instances[0], self.additional_fields)
-        filtered_instances = [{k: instance[k] for k in input_fields} for instance in self.instances]
+        input_type_dict = BatchGenerator._detect_input_type(self.instances[0], self.additional_fields)
+        filtered_instances = [{field: instance[field] for field in input_type_dict} for instance in self.instances]
 
         # 2. Some preprocessing, including char extraction, lowercasing, length
         def transform_new_instance(instance):
@@ -174,18 +177,19 @@ class BatchGenerator(object):
                 instance['context_word_len'] = [len(word) for word in context_tokens]
                 instance['question_word_len'] = [len(word) for word in question_tokens]
 
-            # if do_lowercasing, we will do it in get_word_idx function
+            # if do_lowercasing, we will do it in `get_word_idx` function
             instance['context_ids'] = [self.vocab.get_word_idx(token) for token in context_tokens]
             instance['question_ids'] = [self.vocab.get_word_idx(token) for token in question_tokens]
             instance['context_len'] = len(context_tokens)
             instance['question_len'] = len(question_tokens)
 
-            # filter the str data, because we don't need them when training.
+            # filter the str data, because we don't need them when running neural network
             for field, field_type in input_type_dict.items():
                 if field_type == str:
                     del instance[field]
 
             return instance
+
         new_instances = [transform_new_instance(instance) for instance in filtered_instances]
 
         return MRCDataset(new_instances)
@@ -250,7 +254,7 @@ class BatchGenerator(object):
 
             return result
 
-        return DataLoader(dataset=self.dataset, shuffle=self.training,
+        return DataLoader(dataset=self.dataset, shuffle=self.shuffle,
                           batch_size=self.batch_size,
                           collate_fn=mrc_collate,
                           num_workers=self.num_parallel_calls)
