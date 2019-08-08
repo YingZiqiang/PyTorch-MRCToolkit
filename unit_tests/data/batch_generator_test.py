@@ -1,5 +1,3 @@
-import sys
-sys.path.append('../..')
 from pprint import pprint
 from pytorch_mrc.dataset.squad import SquadReader
 from pytorch_mrc.data.vocabulary import Vocabulary
@@ -40,7 +38,7 @@ print('word vocab size: {}, word embedding shape: {}'.format(len(vocab.get_word_
 # build batch generator
 print('***building batch generator***')
 batch_generator = BatchGenerator()
-batch_generator.build(vocab, tiny_data, batch_size=32, training=False)
+batch_generator.build(vocab, tiny_data, batch_size=32, shuffle=False)
 print_info(batch_generator)
 
 # save batch generator

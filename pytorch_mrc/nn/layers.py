@@ -121,7 +121,7 @@ class Gate(nn.Module):
     def __init__(self, input_dim, drop_prob=0.0):
         super().__init__()
         self.gate = nn.Sequential(
-            VariationalDropout(drop_prob),
+            VariationalDropout(drop_prob, batch_first=True),
             nn.Linear(input_dim, input_dim, bias=False),
             nn.Sigmoid()
         )
@@ -148,6 +148,9 @@ class StaticPairEncoder(nn.Module):
 
 
 class StaticSelfMatchEncoder(StaticPairEncoder):
+    """
+    just same with `StaticPairEncoder`
+    """
     pass
 
 

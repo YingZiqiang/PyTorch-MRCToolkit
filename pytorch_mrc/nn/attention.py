@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from .recurrent import GRU
 from .dropout import VariationalDropout
 from .util import sequence_mask, masked_softmax
 
@@ -54,6 +55,7 @@ class DotAttention(nn.Module):
     1. Use similarity to compute similarity score
     2. Use masked softmax to gain similarity between inputs and valid memory
     """
+
     def __init__(self, input_dim, memory_dim, hidden_dim, drop_prob=0.0, batch_first=True):
         super(DotAttention, self).__init__()
         self.hidden_dim = hidden_dim
@@ -91,6 +93,33 @@ class DotAttention(nn.Module):
         return new_input
 
 
+class CoAttention(nn.Module):
+    """
+    come from sogou R-Net module, which is like to MLPSimilarity
+    """
+
+    def __init__(self, context_dim, question_dim, hidden_dim):
+        super(CoAttention, self).__init__()
+        self.context_linear = nn.Linear(context_dim, hidden_dim)
+        self.question_linear = nn.Linear(question_dim, hidden_dim)
+        self.reduce_linear = nn.Linear(hidden_dim, 1)
+        self.gate_linear = nn.Linear(context_dim + question_dim, context_dim + question_dim)
+        self.gru = GRU(context_dim + question_dim, hidden_dim)
+
+    def forward(self, context_repr, question_repr, context_len, question_mask):
+        co_att_context = self.context_linear(context_repr).unsqueeze(2)  # B*CL*1*H
+        co_att_question = self.question_linear(question_repr).unsqueeze(1)  # B*1*QL*H
+        co_attention_score = self.reduce_linear(torch.tanh(co_att_context + co_att_question)).squeeze(-1)  # B*CL*QL
+        co_attention_score += (1. - question_mask.unsqueeze(1)) * VERY_NEGATIVE_NUMBER
+        co_attention_similarity = F.softmax(co_attention_score, -1)  # B*CL*QL
+
+        new_input = torch.cat([context_repr, torch.bmm(co_attention_similarity, question_repr)], -1)  # B*CL*(CD+QD)
+        new_input = new_input * torch.sigmoid(self.gate_linear(new_input))
+
+        outputs, _ = self.gru(new_input, context_len)  # B*CL*H
+        return outputs
+
+
 class MultiHeadAttention(nn.Module):
     def __init__(self, heads, input_dim, units, attention_on_itself=True):
         super(MultiHeadAttention, self).__init__()
@@ -111,7 +140,7 @@ class MultiHeadAttention(nn.Module):
 
         attention_score = torch.matmul(wq, wk.transpose(2, 3)) / math.sqrt(float(self.units) / self.heads)  # Head*B*QL*KL
         if torch.equal(query, key) and not self.attention_on_itself:
-            attention_score += torch.diag(wq.new_zeros(max_key_len) - VERY_NEGATIVE_NUMBER)
+            attention_score += torch.diag(wq.new_zeros(max_key_len) + VERY_NEGATIVE_NUMBER)
         if key_mask is not None:
             if key_mask.dim() == 1:
                 key_mask = sequence_mask(key_mask, maxlen=max_key_len)

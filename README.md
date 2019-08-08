@@ -41,7 +41,7 @@ The whole project is written and maintained by me alone, so I hope that some fri
 ### F1/EM score on SQuAD 1.1 dev set
 | Model | toolkit implementation | original paper|
 | --- | --- | ---|
-|BiDAF | 77.6/67.9  | 77.3/67.7 |
+|BiDAF | 77.8/68.1  | 77.3/67.7 |
 |BiDAF+ELMo | - | - |
 |IARNN-Word | - | - |
 |IARNN-hidden | - | - |

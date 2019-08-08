@@ -4,9 +4,11 @@ from stanfordnlp.server.client import CoreNLPClient
 import jieba
 import multiprocessing
 import re
+
+
 class SpacyTokenizer(object):
-    def __init__(self,fine_grained=False):
-        self.nlp = spacy.load('en', disable=['parser','tagger','entity'])
+    def __init__(self, fine_grained=False):
+        self.nlp = spacy.load('en', disable=['parser', 'tagger', 'entity'])
         self.fine_grained = fine_grained
 
     def word_tokenizer(self, doc):
@@ -61,7 +63,7 @@ class JieBaTokenizer(object):
 
 class StanfordTokenizer(object):
     def __init__(self, language='zh', annotators='ssplit tokenize', timeout=30000, memory="4G"):
-        if language=='zh':
+        if language == 'zh':
             CHINESE_PROPERTIES = {
                 "tokenize.language": "zh",
                 "segment.model": "edu/stanford/nlp/models/segmenter/chinese/ctb.gz",
@@ -72,7 +74,7 @@ class StanfordTokenizer(object):
             }
         else:
             CHINESE_PROPERTIES = {}
-        self.client = CoreNLPClient(annotators=annotators, timeout=timeout, memory=memory,properties=CHINESE_PROPERTIES)
+        self.client = CoreNLPClient(annotators=annotators, timeout=timeout, memory=memory, properties=CHINESE_PROPERTIES)
 
     def word_tokenizer(self, doc):
         try:
@@ -84,4 +86,4 @@ class StanfordTokenizer(object):
                     token_spans.append((token.beginChar, token.endChar))
             return tokens, token_spans
         except Exception as e:
-            return None,None
+            return None, None
