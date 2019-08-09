@@ -1,3 +1,5 @@
+import sys
+sys.path.append('../..')
 import logging
 import torch
 from pytorch_mrc.dataset.squad import SquadReader, SquadEvaluator

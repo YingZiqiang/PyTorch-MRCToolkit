@@ -1,3 +1,5 @@
+import sys
+sys.path.append('../..')
 from pytorch_mrc.data.vocabulary import Vocabulary
 from pytorch_mrc.dataset.squad import SquadReader
 

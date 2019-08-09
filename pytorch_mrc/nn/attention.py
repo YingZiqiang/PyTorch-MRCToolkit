@@ -93,13 +93,13 @@ class DotAttention(nn.Module):
         return new_input
 
 
-class CoAttention(nn.Module):
+class RnetCoAttention(nn.Module):
     """
     come from sogou R-Net module, which is like to MLPSimilarity
     """
 
     def __init__(self, context_dim, question_dim, hidden_dim):
-        super(CoAttention, self).__init__()
+        super(RnetCoAttention, self).__init__()
         self.context_linear = nn.Linear(context_dim, hidden_dim)
         self.question_linear = nn.Linear(question_dim, hidden_dim)
         self.reduce_linear = nn.Linear(hidden_dim, 1)

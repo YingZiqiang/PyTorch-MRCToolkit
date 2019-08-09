@@ -1,3 +1,5 @@
+import sys
+sys.path.append('../..')
 import logging
 import torch
 from pytorch_mrc.dataset.squad import SquadReader, SquadEvaluator
@@ -23,4 +25,4 @@ vocab = train_batch_generator.get_vocab()
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 model = RNET(vocab, device, pretrained_word_embedding=vocab.get_word_embedding(), word_embedding_size=300)
 model.compile()
-model.train_and_evaluate(train_batch_generator, eval_batch_generator, evaluator, epochs=60, episodes=2)
+model.train_and_evaluate(train_batch_generator, eval_batch_generator, evaluator, epochs=100, episodes=2)

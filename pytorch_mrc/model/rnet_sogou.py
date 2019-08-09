@@ -2,12 +2,13 @@ from collections import deque
 import torch
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss
+from torch.optim import Adam, Adadelta
 
 from pytorch_mrc.model.base_model import BaseModel
 from pytorch_mrc.nn.layers import VariationalDropout, Embedding, PointerNetwork
 from pytorch_mrc.nn.recurrent import BiGRU, MultiLayerBiGRU
 from pytorch_mrc.nn.util import sequence_mask, masked_softmax, mask_logits
-from pytorch_mrc.nn.attention import CoAttention, MultiHeadAttention
+from pytorch_mrc.nn.attention import RnetCoAttention, MultiHeadAttention
 
 
 class RNET(BaseModel):
@@ -43,9 +44,9 @@ class RNET(BaseModel):
                                                    input_drop_prob=dropout_prob)
 
         # Gated attention RNNs in the paper, here we use co-attention
-        self.co_attention_layer = CoAttention(2 * hidden_size * encoder_layers_num,
-                                              2 * hidden_size * encoder_layers_num,
-                                              hidden_dim=hidden_size)
+        self.co_attention_layer = RnetCoAttention(2 * hidden_size * encoder_layers_num,
+                                                  2 * hidden_size * encoder_layers_num,
+                                                  hidden_dim=hidden_size)
 
         # Self matching attention, here we use multi-head Attetion
         self.multi_head_att = MultiHeadAttention(heads, hidden_size, hidden_size, attention_on_itself=False)
@@ -84,11 +85,11 @@ class RNET(BaseModel):
             [-1, max_question_word_len, self.char_embedding_size]))  # (B*QL)*WL*CD
 
         # 1.2 Char-level representation
-        _, last_hidden_state = self.char_bigru(context_char_embedding)  # 2*(B*CL)*H
+        _, last_hidden_state = self.char_bigru(context_char_embedding, context_word_len.reshape([-1]))  # 2*(B*CL)*H
         context_char_repr = torch.cat([last_hidden_state[0], last_hidden_state[1]], dim=-1)  # (B*CL)*2H
         context_char_repr = context_char_repr.reshape([-1, max_context_len, 2 * self.hidden_size])  # B*CL*2H
 
-        _, last_hidden_state = self.char_bigru(question_char_embedding)  # 2*(B*QL)*H
+        _, last_hidden_state = self.char_bigru(question_char_embedding, question_word_len.reshape([-1]))  # 2*(B*QL)*H
         question_char_repr = torch.cat([last_hidden_state[0], last_hidden_state[1]], dim=-1)  # (B*QL)*2H
         question_char_repr = question_char_repr.reshape([-1, max_question_len, 2 * self.hidden_size])  # B*QL*2H
 
@@ -129,7 +130,7 @@ class RNET(BaseModel):
             loss_fct = CrossEntropyLoss(ignore_index=ignored_index)
             start_loss = loss_fct(mask_logits(start_logits, context_mask), answer_start)
             end_loss = loss_fct(mask_logits(end_logits, context_mask), answer_end)
-            total_loss = start_loss + end_loss
+            total_loss = (start_loss + end_loss) / 2
 
             if self.training:
                 return total_loss
@@ -146,17 +147,17 @@ class RNET(BaseModel):
             }
             return output_dict
 
-    # def update(self, grad_clip=5.0):
-    #     if not self.training:
-    #         raise Exception("Only in the train mode, you can update the weights")
-    #     if self.optimizer is None:
-    #         raise Exception("The model need to compile!")
-    #
-    #     torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=grad_clip)
-    #     self.optimizer.step()
+    def update(self, grad_clip=5.0):
+        torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=grad_clip)
+        super().update()
 
-    def compile(self, optimizer=torch.optim.Adam, initial_lr=0.001):
-        self.optimizer = optimizer(self.parameters(), lr=initial_lr)
+    def compile(self, optimizer='adam', initial_lr=0.002):
+        if optimizer.lower() == 'adam':
+            self.optimizer = Adam(self.parameters(), lr=initial_lr)
+        elif optimizer.lower() == 'adadelta':
+            self.optimizer = Adadelta(self.parameters(), lr=initial_lr, rho=0.95, eps=1e-08)
+        else:
+            raise NotImplementedError("the optimizer hasn't been implemented")
 
     def get_best_answer(self, output, instances, max_len=15):
         answer_list = []

@@ -206,9 +206,9 @@ class PointerNetwork(nn.Module):
         state = self._question_pooling(question_repr, question_mask)  # B*QD
         cell_input, ans_start_logits = self._context_attention(context_repr, context_mask, state)  # B*CD, B*CL
         if self.cell_type == 'lstm':
-            state, _ = self.cell(cell_input, hx=(state, state))
+            state, _ = self.cell(cell_input, hx=(state, state))  # B*QD
         else:
-            state = self.cell(cell_input, hx=state)
+            state = self.cell(cell_input, hx=state)  # B*QD
         _, ans_end_logits = self._context_attention(context_repr, context_mask, state)  # _, B*CL
 
         return ans_start_logits, ans_end_logits

@@ -1,3 +1,5 @@
+import sys
+sys.path.append('../..')
 from pprint import pprint
 from pytorch_mrc.dataset.squad import SquadReader
 from pytorch_mrc.data.vocabulary import Vocabulary

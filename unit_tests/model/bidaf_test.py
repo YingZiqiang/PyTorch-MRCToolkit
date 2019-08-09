@@ -1,3 +1,5 @@
+import sys
+sys.path.append('../..')
 import logging
 import torch
 from pytorch_mrc.data.vocabulary import Vocabulary

@@ -9,7 +9,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 
 # define some variable
 EMB_DIM = 300
-BATCH_SIZE = 64
+BATCH_SIZE = 50
 FINE_GRAINED = True
 DO_LOWERCASE = True
 

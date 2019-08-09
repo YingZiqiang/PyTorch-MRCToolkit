@@ -8,6 +8,7 @@ There are some slight deference with hkust model:
 from collections import deque
 import torch
 from torch.nn import CrossEntropyLoss
+from torch.optim import Adam, Adadelta
 
 from pytorch_mrc.model.base_model import BaseModel
 from pytorch_mrc.nn.dropout import VariationalDropout
@@ -145,20 +146,17 @@ class RNET(BaseModel):
             }
             return output_dict
 
-    def compile(self, optimizer=torch.optim.Adadelta, initial_lr=0.5):
-        if optimizer == torch.optim.Adadelta:
-            self.optimizer = optimizer(self.parameters(), lr=initial_lr, rho=0.95)
+    def compile(self, optimizer='adam', initial_lr=0.002):
+        if optimizer.lower() == 'adam':
+            self.optimizer = Adam(self.parameters(), lr=initial_lr)
+        elif optimizer.lower() == 'adadelta':
+            self.optimizer = Adadelta(self.parameters(), lr=initial_lr, rho=0.95, eps=1e-08)
         else:
-            self.optimizer = optimizer(self.parameters(), lr=initial_lr)
+            raise NotImplementedError("the optimizer hasn't been implemented")
 
     def update(self, grad_clip=5.0):
-        if not self.training:
-            raise Exception("Only in the train mode, you can update the weights")
-        if self.optimizer is None:
-            raise Exception("The model need to compile!")
-
         torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=grad_clip)
-        self.optimizer.step()
+        super().update()
 
     def get_best_answer(self, output, instances, max_len=15):
         answer_list = []
