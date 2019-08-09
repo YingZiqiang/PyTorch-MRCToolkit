@@ -31,8 +31,6 @@ The whole project is written and maintained by me alone, so I hope that some fri
 6. `utils`
     - tokenizer.py: Tokenizers that can be used for both English and Chinese
     - feature_extractor: Extracting linguistic features used in some papers, e.g., POS, NER, and Lemma
-7. `libraries`
-    - Bert is included in this toolkit
 
 ## Custom Model and Dataset
 
@@ -42,13 +40,11 @@ The whole project is written and maintained by me alone, so I hope that some fri
 | Model | toolkit implementation | original paper|
 | --- | --- | ---|
 |BiDAF | 77.8/68.1  | 77.3/67.7 |
-|BiDAF+ELMo | - | - |
+|R-Net(sogou) | 79.0/70.5 | 79.5/71.1 |
+|R-Net(hkust) | 78.3/69.8 | 79.5/71.1 |
 |IARNN-Word | - | - |
 |IARNN-hidden | - | - |
 |DrQA | - | 78.8/69.5  |
-|DrQA+ELMO|- | - |
-|R-Net | - | 79.5/71.1  |
-|BiDAF++ | - | -/-  |
 |FusionNet | - | 82.5/74.1  |
 |QANet | - | 82.7/73.6  |
 |BERT-Base | - | 88.5/80.8 |
